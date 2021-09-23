@@ -17,8 +17,7 @@ st.set_page_config(layout="wide")
 # Read CSV Dados Financeiros
 
 @st.cache(persist=True)
-def readDadosFinanceiros():
-    f = r'C:\Users\Renato\Documents\_R Projetos\Projeto GetDFPData\DadosFinanceiros.csv'
+def readDadosFinanceiros(f):
     df = pd.read_csv(f, sep=';', encoding='Latin1', decimal=',')
     df.rec_liq = df.rec_liq.astype(int)
     df.lucro_liq = df.lucro_liq.astype(int)
@@ -29,7 +28,8 @@ def readDadosFinanceiros():
     df = df.fillna('')
     return df
 
-financ = readDadosFinanceiros()
+#financ = readDadosFinanceiros(f = r'C:\Users\Renato\Documents\_R Projetos\Projeto GetDFPData\DadosFinanceiros.csv')
+financ = readDadosFinanceiros(f='https://raw.githubusercontent.com/renatosts/AnaliseFundamentalista/main/DadosFinanceiros.csv')
 
 row1_1, row1_2 = st.columns([2,3])
 
