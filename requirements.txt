@@ -1,7 +1,7 @@
-matplotlib==3.4.2
-numpy==1.21.2
-pandas-data-reader==0.10.0
-plotly==5.3.1
-plotly-express==0.4.1
-streamlit==0.88.0
-yfinance==0.1.63
+matplotlib
+numpy
+pandas-data-reader
+plotly
+plotly-express
+streamlit
+yfinance
