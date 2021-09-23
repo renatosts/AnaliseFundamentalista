@@ -1,6 +1,6 @@
 matplotlib
 numpy
-pandas-data-reader
+requests
 plotly
 plotly-express
 streamlit
