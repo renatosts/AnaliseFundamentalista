@@ -5,3 +5,4 @@ plotly
 plotly-express
 streamlit
 yfinance
+pandas-data-reader
