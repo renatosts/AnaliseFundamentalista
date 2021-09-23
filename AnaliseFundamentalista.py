@@ -51,7 +51,7 @@ df_aux.reset_index(inplace=True, drop=True)
 df_aux = df_aux.set_index('Ano')
 
 df_aux = df_aux.style.format('{:,}')
-df_aux.style.format(subset=['Marg.Líq', 'Dív.Líq'], formatter='{:.2f}'))
+df_aux.style.format(subset=['Marg.Líq', 'Dív.Líq'], formatter='{:.2f}')
 
 # EXIBE DATAFRAME
 with row1_2:
