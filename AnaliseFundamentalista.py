@@ -16,7 +16,7 @@ st.set_page_config(layout="wide")
 
 # Read CSV Dados Financeiros
 
-#@st.cache(persist=True)
+@st.cache(persist=True)
 def readDadosFinanceiros(f):
     df = pd.read_csv(f, sep=';', encoding='Latin1', decimal=',')
     df.rec_liq = df.rec_liq.astype(int)
