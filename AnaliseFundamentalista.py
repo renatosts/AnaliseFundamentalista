@@ -28,7 +28,6 @@ def readDadosFinanceiros(f):
     df = df.fillna('')
     return df
 
-#financ = readDadosFinanceiros(f = r'C:\Users\Renato\Documents\_R Projetos\Projeto GetDFPData\DadosFinanceiros.csv')
 financ = readDadosFinanceiros(f='https://raw.githubusercontent.com/renatosts/AnaliseFundamentalista/main/DadosFinanceiros.csv')
 
 row1_1, row1_2 = st.columns([2,3])
@@ -52,6 +51,7 @@ df_aux.reset_index(inplace=True, drop=True)
 df_aux = df_aux.set_index('Ano')
 
 df_aux = df_aux.style.format('{:,}')
+#df_aux = df_aux.style.format(subset=['Marg.Líq', 'Dív.Líq'], formatter='{:.2f}')
 
 # EXIBE DATAFRAME
 with row1_2:
