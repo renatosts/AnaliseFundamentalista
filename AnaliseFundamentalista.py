@@ -16,7 +16,7 @@ st.set_page_config(layout="wide")
 
 # Read CSV Dados Financeiros
 
-#@st.cache(persist=True)
+@st.cache(persist=True)
 def readDadosFinanceiros(f):
     df = pd.read_csv(f, sep=';', encoding='Latin1', decimal=',')
     df.rec_liq = df.rec_liq.astype(int)
@@ -25,6 +25,7 @@ def readDadosFinanceiros(f):
     df.caixa = df.caixa.astype(int)
     df.pl = df.pl.astype(int)
     df.div_total = df.div_total.astype(int)
+    df.acoes = df.acoes.astype(int)
     df = df.fillna('')
     return df
 
@@ -45,8 +46,10 @@ with row1_1:
 # FILTERING DATA
 df = financ[financ.ticker.str.startswith(str.upper(ticker))]
 
-df_aux = df[['ano', 'rec_liq', 'lucro_liq', 'margem_liq', 'EBITDA', 'div_liq', 'caixa', 'pl', 'div_total']]
-df_aux.columns = ['Ano', 'Rec.Líq', 'Luc.Líq', 'Marg.Líq', 'EBITDA', 'Dív.Líq', 'Caixa', 'Patr.Líq', 'Dív.Total']
+print(df)
+
+df_aux = df[['ano', 'rec_liq', 'lucro_liq', 'margem_liq', 'EBITDA', 'div_liq', 'caixa', 'pl', 'div_total', 'acoes']]
+df_aux.columns = ['Ano', 'Rec.Líq', 'Luc.Líq', 'Marg.Líq', 'EBITDA', 'Dív.Líq', 'Caixa', 'Patr.Líq', 'Dív.Total', 'Ações']
 df_aux.reset_index(inplace=True, drop=True) 
 df_aux = df_aux.set_index('Ano')
 
