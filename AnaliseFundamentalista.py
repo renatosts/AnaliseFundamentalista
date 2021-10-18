@@ -1,15 +1,11 @@
 import streamlit as st
 import pandas as pd
-import csv
-
 import plotly.express as px
 import matplotlib.pyplot as plt
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
-#import plotly.offline as pyo
 from pandas_datareader import data as pdr
 import yfinance as yf
-
 
 # SETTING PAGE CONFIG TO WIDE MODE
 st.set_page_config(layout="wide")
@@ -25,7 +21,7 @@ def readDadosFinanceiros(f):
     df.caixa = df.caixa.astype(int)
     df.pl = df.pl.astype(int)
     df.div_total = df.div_total.astype(int)
-    df.acoes = df.acoes.astype(int)
+    df.acoes = (df.acoes / 1_000).astype(int)
     df = df.fillna('')
     return df
 
@@ -34,7 +30,6 @@ financ = readDadosFinanceiros(f='https://raw.githubusercontent.com/renatosts/Ana
 row1_1, row1_2 = st.columns([2,3])
 
 with row1_1:
-    #st.title('Análise Fundamentalista')
     # Prepara lista de empresas
     ticker_opcoes =  financ.segmento.str[:20] + ' - ' + financ.ticker.str[:4] + ' - ' + financ.nome
     ticker_opcoes = ticker_opcoes.drop_duplicates().sort_values()
@@ -44,12 +39,17 @@ with row1_1:
     empresa = ticker_selecionado.split(sep='-')[2].strip()
 
 # FILTERING DATA
-df = financ[financ.ticker.str.startswith(str.upper(ticker))]
-
+df = financ[financ.ticker.str.startswith(str.upper(ticker))].copy()
 print(df)
 
-df_aux = df[['ano', 'rec_liq', 'lucro_liq', 'margem_liq', 'EBITDA', 'div_liq', 'caixa', 'pl', 'div_total', 'acoes']]
-df_aux.columns = ['Ano', 'Rec.Líq', 'Luc.Líq', 'Marg.Líq', 'EBITDA', 'Dív.Líq', 'Caixa', 'Patr.Líq', 'Dív.Total', 'Ações']
+qtd_acoes = df.acoes.iloc[0]
+
+# Define para merge do cálculo do P/L diário
+df['prox_ano'] = df.ano + 1
+
+df_aux = df[['ano', 'rec_liq', 'lucro_liq', 'margem_liq', 'EBITDA', 'div_liq', 'caixa', 'pl', 'div_total']]
+df_aux.columns = ['Ano', 'Rec.Líq', 'Luc.Líq', 'Marg.Líq', 'EBITDA', 'Dív.Líq', 'Caixa', 'Patr.Líq', 'Dív.Total']
+
 df_aux.reset_index(inplace=True, drop=True) 
 df_aux = df_aux.set_index('Ano')
 
@@ -59,7 +59,6 @@ df_aux = df_aux.style.format('{:,}')
 # EXIBE DATAFRAME
 with row1_2:
     st.dataframe(df_aux)
-    #st.table(df_aux)
 
 with row1_1:
     st.write(f'{df.ticker.iloc[0]} - {df.pregao.iloc[0]}')
@@ -114,23 +113,42 @@ fig.update_layout(legend=dict(
     xanchor="right",
     x=1))
 
-
 st.plotly_chart(fig, use_container_width=True)
-
 
 # Cotações
 
-ticker_b3 = financ.ticker[(financ.ticker.str.startswith(ticker))].iloc[0].split(sep=';')
+ticker_b3 = df.ticker[(df.ticker.str.startswith(ticker))].iloc[0].split(sep=';')
+
+row1_1, row1_2 = st.columns([1, 0.95])
+
 
 for tck in ticker_b3:
 
-    df = pdr.DataReader(f'{tck}.SA', data_source='yahoo', start=f'2010-01-01')
+    df_b3 = pdr.DataReader(f'{tck}.SA', data_source='yahoo', start=f'2010-01-01')
     
-    #figd = make_subplots()
+    # Cálculo do P/L diário
 
-    fig = go.Figure(data=[
-        go.Scatter(x=df.index, y=df["Adj Close"], marker=dict(color="darkgoldenrod"))])
+    df_b3['Ano'] = df_b3.index.year
+    df_b3['Data'] = df_b3.index
+    df_b3 = df_b3.merge(df, how='left', left_on='Ano', right_on='prox_ano')
+    df_b3['P/L'] = df_b3.Close / (df_b3.lucro_liq / qtd_acoes)
 
-    fig.update_layout(title=f'<b>{tck} (R$ {df["Adj Close"].iloc[-1]:,.2f})</b>')
+    # Limita intervalo do P/L entre -150 e 150
+    df_b3.loc[df_b3['P/L'] > 150, 'P/L'] = 150
+    df_b3.loc[df_b3['P/L'] < -150, 'P/L'] = -150
 
-    st.plotly_chart(fig)
+    with row1_1:
+        
+        fig = go.Figure(data=[
+            go.Scatter(x=df_b3["Data"], y=df_b3["Adj Close"], marker=dict(color="darkgoldenrod"))])
+        fig.update_layout(title=f'<b>{tck} (R$ {df_b3["Adj Close"].iloc[-1]:,.2f})</b>')
+
+        st.plotly_chart(fig)
+
+    with row1_2:
+        
+        fig = go.Figure(data=[
+            go.Scatter(x=df_b3["Data"], y=df_b3["P/L"], marker=dict(color="green"))])
+        fig.update_layout(title=f'<b>P/L Diário ({df_b3["P/L"].iloc[-1]:,.2f})    (Ações: {qtd_acoes:,.0f})</b>')
+
+        st.plotly_chart(fig)
