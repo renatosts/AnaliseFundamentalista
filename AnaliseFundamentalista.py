@@ -137,6 +137,8 @@ for tck in ticker_b3:
     df_b3.loc[df_b3['P/L'] > 150, 'P/L'] = 150
     df_b3.loc[df_b3['P/L'] < -150, 'P/L'] = -150
 
+    df_pl_hist = df_b3.tail(500)
+
     with row1_1:
         
         fig = go.Figure(data=[
@@ -148,7 +150,7 @@ for tck in ticker_b3:
     with row1_2:
         
         fig = go.Figure(data=[
-            go.Scatter(x=df_b3["Data"], y=df_b3["P/L"], marker=dict(color="green"))])
-        fig.update_layout(title=f'<b>P/L Diário ({df_b3["P/L"].iloc[-1]:,.2f})    (Ações: {qtd_acoes:,.0f})</b>')
+            go.Scatter(x=df_pl_hist["Data"], y=df_pl_hist["P/L"], marker=dict(color="green"))])
+        fig.update_layout(title=f'<b>P/L Histórico Diário ({df_pl_hist["P/L"].iloc[-1]:,.2f})    (Ações: {qtd_acoes:,.0f})</b>')
 
         st.plotly_chart(fig)
