@@ -28,7 +28,7 @@ def readDadosFinanceiros(f):
     return df
 
 f ='https://raw.githubusercontent.com/renatosts/AnaliseFundamentalista/main/DadosFinanceiros.csv'
-f = r'C:\Users\Renato\Documents\_Projetos Github\AnaliseFundamentalista\DadosFinanceiros.csv'
+#f = r'C:\Users\Renato\Documents\_Projetos Github\AnaliseFundamentalista\DadosFinanceiros.csv'
 
 financ = readDadosFinanceiros(f)
 
