@@ -21,11 +21,16 @@ def readDadosFinanceiros(f):
     df.caixa = df.caixa.astype(int)
     df.pl = df.pl.astype(int)
     df.div_total = df.div_total.astype(int)
+    df.acoes = df.acoes.fillna(0)
     df.acoes = (df.acoes / 1_000).astype(int)
+    df.data_form = pd.to_datetime(df.data_form).dt.strftime('%d/%m/%Y')
     df = df.fillna('')
     return df
 
-financ = readDadosFinanceiros(f='https://raw.githubusercontent.com/renatosts/AnaliseFundamentalista/main/DadosFinanceiros.csv')
+f ='https://raw.githubusercontent.com/renatosts/AnaliseFundamentalista/main/DadosFinanceiros.csv'
+f = r'C:\Users\Renato\Documents\_Projetos Github\AnaliseFundamentalista\DadosFinanceiros.csv'
+
+financ = readDadosFinanceiros(f)
 
 row1_1, row1_2 = st.columns([2,3])
 
@@ -38,27 +43,36 @@ with row1_1:
     ticker = ticker_selecionado.split(sep='-')[1].strip()
     empresa = ticker_selecionado.split(sep='-')[2].strip()
 
-# FILTERING DATA
-df = financ[financ.ticker.str.startswith(str.upper(ticker))].copy()
+# FILTERING DATA (limitando aos 12 últimos anos - tail)
+df = financ[financ.ticker.str.startswith(str.upper(ticker))].tail(12).copy()
 print(df)
 
 qtd_acoes = df.acoes.iloc[0]
+ult_dem = df.tipo_form.iloc[-1]
+ult_dem_data = df.data_form.iloc[-1]
 
 # Define para merge do cálculo do P/L diário
 df['prox_ano'] = df.ano + 1
 
-df_aux = df[['ano', 'rec_liq', 'lucro_liq', 'margem_liq', 'EBITDA', 'div_liq', 'caixa', 'pl', 'div_total']]
-df_aux.columns = ['Ano', 'Rec.Líq', 'Luc.Líq', 'Marg.Líq', 'EBITDA', 'Dív.Líq', 'Caixa', 'Patr.Líq', 'Dív.Total']
+df_aux = df[['ano', 'tipo_form', 'rec_liq', 'lucro_liq', 'margem_liq', 'EBITDA', 'div_liq', 'caixa', 'pl', 'div_total', 'data_form']]
 
 df_aux.reset_index(inplace=True, drop=True) 
-df_aux = df_aux.set_index('Ano')
+df_aux = df_aux.set_index('ano')
 
-df_aux = df_aux.style.format('{:,}')
-#df_aux = df_aux.style.format(subset=['Marg.Líq', 'Dív.Líq'], formatter='{:.2f}')
+df_aux.columns = ['Dem', 'Rec.Líq', 'Luc.Líq', 'Marg.Líq', 'EBITDA', 'Dív.Líq', 'Caixa', 'Patr.Líq', 'Dív.Total',  'Data Dem']
+
+df_aux = df_aux.style.format(thousands=".",
+                             decimal = ",",
+                             formatter={'Marg.Líq': '{:.2f}',
+                                        'Dív.Líq': '{:.2f}'})
+
 
 # EXIBE DATAFRAME
 with row1_2:
     st.dataframe(df_aux)
+    st.write('DFP: Demonstrações Financeiras Padronizadas (anual) / ITR: Informações Trimestrais')
+    if ult_dem == 'ITR':
+        st.write(f'ITR -> dados acumulados até {ult_dem_data}')
 
 with row1_1:
     st.write(f'{df.ticker.iloc[0]} - {df.pregao.iloc[0]}')
@@ -84,7 +98,7 @@ fig.add_trace(
     row=1, col=1)
 
 fig.add_trace(
-    go.Bar(x=df.ano, y=df.lucro_liq, marker=dict(color="orange"), name='Lucro Líquido'), 
+    go.Bar(x=df.ano, y=df.lucro_liq, marker=dict(color="yellow"), name='Lucro Líquido'), 
     secondary_y=False,
     row=1, col=2)
 fig.add_trace(
@@ -97,7 +111,7 @@ fig.add_trace(
     row=2, col=1)
 
 fig.add_trace(
-    go.Bar(x=df.ano, y=df.pl, name='Patr.Líq', marker=dict(color="yellow")),
+    go.Bar(x=df.ano, y=df.pl, name='Patr.Líq', marker=dict(color="purple")),
     row=2, col=2)
 fig.add_trace(
     go.Bar(x=df.ano, y=df.caixa, name='Caixa', marker=dict(color="cyan")),
@@ -119,7 +133,7 @@ st.plotly_chart(fig, use_container_width=True)
 
 ticker_b3 = df.ticker[(df.ticker.str.startswith(ticker))].iloc[0].split(sep=';')
 
-row1_1, row1_2 = st.columns([1, 0.95])
+row1_1, row1_2 = st.columns([1, 1])
 
 
 for tck in ticker_b3:
