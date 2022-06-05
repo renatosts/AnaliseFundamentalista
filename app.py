@@ -18,17 +18,28 @@ st.set_page_config(
 @st.cache(persist=True)
 def readDadosFinanceiros(f):
     df = pd.read_csv(f, sep=';', encoding='Latin1', decimal=',')
-    df.receita_liq = df.receita_liq / 1000
-    df.lucro_liq = df.lucro_liq / 1000
-    df.EBITDA = df.EBITDA / 1000
-    df.caixa = df.caixa / 1000
-    df.patr_liq = df.patr_liq / 1000
-    df.divida_total = df.divida_total / 1000
+    df.receita_liq = df.receita_liq / 1_000
+    df.lucro_liq = df.lucro_liq / 1_000
+    df.EBITDA = df.EBITDA / 1_000
+    df.caixa = df.caixa / 1_000
+    df.patr_liq = df.patr_liq / 1_000
+    df.divida_total = df.divida_total / 1_000
     df.acoes = df.acoes.fillna(0)
     df.acoes = (df.acoes / 1_000).astype(int)
     df.dt_ref = pd.to_datetime(df.dt_ref).dt.strftime('%d/%m/%Y')
     df = df.fillna('')
     return df
+
+
+def define_color(val):
+    if val < 0:
+        color = 'red'
+    elif val > 0:
+        color = 'green'
+    else:
+        color = 'gray'
+    return 'color: %s' % color
+
 
 f ='https://raw.githubusercontent.com/renatosts/AnaliseFundamentalista/main/DadosFinanceiros.csv'
 #f = r'C:\Users\Renato\Documents\_Projetos Github\CVM_Dados_Financeiros\DadosFinanceiros.csv'
@@ -67,25 +78,26 @@ df_aux.columns = ['Dem', 'Rec.Líq', 'Luc.Líq', 'Marg.Líq', 'EBITDA', 'Dív.L�
 
 df_aux = df_aux.style.format(thousands=".",
                              decimal = ",",
-                             formatter={'Rec.Líq': '{:,.0f}',
-                                        'Luc.Líq': '{:,.0f}',
-                                        'Marg.Líq': '{:.1f}',
-                                        'EBITDA': '{:,.0f}',
-                                        'Caixa': '{:,.0f}',
-                                        'Patr.Líq': '{:,.0f}',
-                                        'Dív.Total': '{:,.0f}',
-                                        'Dív.Líq': '{:.1f}'})
+                             formatter={'Rec.Líq': '{:,.1f}',
+                                        'Luc.Líq': '{:,.1f}',
+                                        'Marg.Líq': '{:.1%}',
+                                        'EBITDA': '{:,.1f}',
+                                        'Caixa': '{:,.1f}',
+                                        'Patr.Líq': '{:,.1f}',
+                                        'Dív.Total': '{:,.1f}',
+                                        'Dív.Líq': '{:.1f}'}).applymap(define_color, subset=['Luc.Líq', 'Marg.Líq', 'EBITDA', 'Dív.Líq'])
 
 
 # EXIBE DATAFRAME
 with row1_2:
-    st.dataframe(df_aux)
+    st.table(df_aux)
     st.write('DFP: Demonstrações Financeiras Padronizadas (anual) / ITR: Informações Trimestrais')
     if ult_dem == 'ITR':
         st.write(f'ITR -> dados acumulados até {ult_dem_data}')
 
 with row1_1:
     #st.write(f'{df.ticker.iloc[0]} - {df.pregao.iloc[0]}')
+    st.write(f'{df.nome.iloc[0]}')
     st.write(f'{df.ticker.iloc[0]}')
     #st.write(f'IBovespa: {df.ibovespa.iloc[-1]} - {df.segmento.iloc[0]}')
     st.write(f'{df.segmento.iloc[0]}')
