@@ -1056,3 +1056,4 @@ streamlit/Scripts/python.exe
 streamlit/Scripts/pythonw.exe
 BaseTabular.xlsx
 BaseTabular.csv
+.vscode/launch.json
