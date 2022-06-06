@@ -134,8 +134,8 @@ def download_arquivos_CVM(tipo):
     df = df[df['last_mod'] > data_ultimo_download]
 
     for arq in df['nome']:
-         print('Download do arquivo:', arq)
-         download_url(URL_CVM + arq + '.zip', dest_folder=rf'Base_CVM\{tipo}')
+        with st.spinner(f'Download do arquivo {arq}'):
+            download_url(URL_CVM + arq + '.zip', dest_folder=rf'.\Base_CVM\{tipo}')
 
 
 def download_url(url: str, dest_folder: str):
@@ -165,7 +165,7 @@ def processa_base_cvm(tipo, arquivo):
 
     df = pd.DataFrame()
 
-    pasta = f'Base_CVM\\{tipo}\\'
+    pasta = f'.\\Base_CVM\\{tipo}\\'
 
     for filezip in os.listdir(pasta):
 
@@ -215,7 +215,6 @@ def cria_base_Dados_Financeiros():
     base_download_cvm = ['DFP', 'ITR', 'FRE', 'FCA']
 
     for tipo in base_download_cvm:
-        print(tipo)
         download_arquivos_CVM(tipo)
 
     # Atualiza data do último download
@@ -233,60 +232,66 @@ def cria_base_Dados_Financeiros():
     # Dados Financeiros
 
     # Processa DFP
+    with st.spinner('Processando DFP'):
 
-    dfp = processa_dados_financeiros('DFP')
+        dfp = processa_dados_financeiros('DFP')
 
-    ultimo_ano_dfp = dfp.groupby(['cod_cvm']).last().reset_index()[['cod_cvm', 'dt_ref', 'ano']]
-    ultimo_ano_dfp.columns = ['cod_cvm', 'ultimo_dfp_dt_ref', 'ultimo_dfp_ano']
+        ultimo_ano_dfp = dfp.groupby(['cod_cvm']).last().reset_index()[['cod_cvm', 'dt_ref', 'ano']]
+        ultimo_ano_dfp.columns = ['cod_cvm', 'ultimo_dfp_dt_ref', 'ultimo_dfp_ano']
 
-    ano_anterior = dfp.ano.max() - 1
+        ano_anterior = dfp.ano.max() - 1
 
-    empresas_ano_anterior = ultimo_ano_dfp[ultimo_ano_dfp.ultimo_dfp_ano >= ano_anterior]
-    dfp = dfp[dfp.cod_cvm.isin(empresas_ano_anterior.cod_cvm)]
+        empresas_ano_anterior = ultimo_ano_dfp[ultimo_ano_dfp.ultimo_dfp_ano >= ano_anterior]
+        dfp = dfp[dfp.cod_cvm.isin(empresas_ano_anterior.cod_cvm)]
 
     # Processa ITR (deixa somente último ITR se houver)
 
-    itr = processa_dados_financeiros('ITR')
+    with st.spinner('Processando ITR'):
 
-    ultimo_itr = itr.groupby(['cod_cvm']).last().reset_index()[['cod_cvm', 'ano', 'dt_ref', 'versao']]
-    ultimo_itr = ultimo_itr.merge(ultimo_ano_dfp, on='cod_cvm', how='left')
+        itr = processa_dados_financeiros('ITR')
 
-    ultimo_itr = ultimo_itr[ultimo_itr.dt_ref > ultimo_itr.ultimo_dfp_dt_ref]
-    ultimo_itr = ultimo_itr[((ultimo_itr.ultimo_dfp_dt_ref.isna()) & (ultimo_itr.ano > ano_anterior)) |
-                            (ultimo_itr.ano > ano_anterior)]
+        ultimo_itr = itr.groupby(['cod_cvm']).last().reset_index()[['cod_cvm', 'ano', 'dt_ref', 'versao']]
+        ultimo_itr = ultimo_itr.merge(ultimo_ano_dfp, on='cod_cvm', how='left')
+
+        ultimo_itr = ultimo_itr[ultimo_itr.dt_ref > ultimo_itr.ultimo_dfp_dt_ref]
+        ultimo_itr = ultimo_itr[((ultimo_itr.ultimo_dfp_dt_ref.isna()) & (ultimo_itr.ano > ano_anterior)) |
+                                (ultimo_itr.ano > ano_anterior)]
 
 
-    itr['chave'] = itr.cod_cvm.astype(str) + itr.dt_ref.dt.strftime('%Y-%m-%d') + itr.versao.astype(str)
-    ultimo_itr['chave'] = ultimo_itr.cod_cvm.astype(str) + ultimo_itr.dt_ref.dt.strftime('%Y-%m-%d') + ultimo_itr.versao.astype(str)
+        itr['chave'] = itr.cod_cvm.astype(str) + itr.dt_ref.dt.strftime('%Y-%m-%d') + itr.versao.astype(str)
+        ultimo_itr['chave'] = ultimo_itr.cod_cvm.astype(str) + ultimo_itr.dt_ref.dt.strftime('%Y-%m-%d') + ultimo_itr.versao.astype(str)
 
-    itr = itr[itr.chave.isin(ultimo_itr.chave)]
+        itr = itr[itr.chave.isin(ultimo_itr.chave)]
 
-    del itr['chave']
+        del itr['chave']
 
 
     # Junta DFP com último ITR
-    financ = pd.concat([dfp, itr])
+    
+    with st.spinner('Preparando base Dados Financeiros'):
+        
+        financ = pd.concat([dfp, itr])
 
-    # Seleciona saldos de interesse
+        # Seleciona saldos de interesse
 
-    contas_selec = ['1', '1.01.01', '1.01.02', '2.03', '3.01', '3.03',
-                    '3.05', '3.11', '2.01.04', '2.02.01']
+        contas_selec = ['1', '1.01.01', '1.01.02', '2.03', '3.01', '3.03',
+                        '3.05', '3.11', '2.01.04', '2.02.01']
 
-    # idx saldos
-    idx_saldos = financ.cod_conta.isin(contas_selec)
+        # idx saldos
+        idx_saldos = financ.cod_conta.isin(contas_selec)
 
-    # idx deprec
-    idx_deprec = (financ.cod_conta.str.startswith('6.01')
-                ) & (
-                financ.desc_conta.str.lower().str.contains('deprec|amortiz', regex=True))
+        # idx deprec
+        idx_deprec = (financ.cod_conta.str.startswith('6.01')
+                    ) & (
+                    financ.desc_conta.str.lower().str.contains('deprec|amortiz', regex=True))
 
 
-    saldos = financ[idx_saldos]
+        saldos = financ[idx_saldos]
 
-    deprec = financ[idx_deprec]
-    deprec = deprec.groupby(['form', 'cod_cvm', 'ano', 'dt_ref']).sum('valor').reset_index()
-    deprec['deprec_amortiz'] = deprec['valor']
-    del deprec['valor']
+        deprec = financ[idx_deprec]
+        deprec = deprec.groupby(['form', 'cod_cvm', 'ano', 'dt_ref']).sum('valor').reset_index()
+        deprec['deprec_amortiz'] = deprec['valor']
+        del deprec['valor']
 
     # Gera arquivo de saída
 
