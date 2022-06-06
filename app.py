@@ -96,6 +96,11 @@ def download_arquivos_CVM(tipo):
 
     # Verifica data do último download
 
+    cwd = os.getcwd()
+    cwd
+    files = os.listdir(cwd)
+    files
+    
     with open('controle_download.csv', 'r') as f:
         reader = csv.reader(f)
         for row in reader:
