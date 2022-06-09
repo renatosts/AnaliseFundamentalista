@@ -15,24 +15,31 @@ dbname = 'ANALISE_FUNDAMENTALISTA.db'
 
 conn = sqlite3.connect(dbname)
 
-# Read CSV Dados Financeiros
 
-def readDadosFinanceiros():
+def config_read(config_parametro):
 
-    df = pd.read_sql('SELECT * FROM DADOS_FINANCEIROS', conn)
 
-    df.receita_liq = df.receita_liq / 1_000
-    df.lucro_liq = df.lucro_liq / 1_000
-    df.EBITDA = df.EBITDA / 1_000
-    df.caixa = df.caixa / 1_000
-    df.patr_liq = df.patr_liq / 1_000
-    df.divida_total = df.divida_total / 1_000
-    df.acoes = df.acoes.fillna(0)
-    df.acoes = (df.acoes / 1_000).astype(int)
-    df.dt_ref = pd.to_datetime(df.dt_ref).dt.strftime('%d/%m/%Y')
-    df = df.fillna('')
-    return df
+    sql = f'''
+        SELECT *
+        FROM CONFIG
+        WHERE config_parametro = '{config_parametro}'
+    '''
+    config = pd.read_sql(sql, conn)
 
+    return config.config_valor.iloc[0]
+
+
+def config_update(config_parametro, config_valor):
+
+
+    sql = f'''
+        UPDATE CONFIG
+        SET config_valor = '{config_valor}'
+        WHERE config_parametro = '{config_parametro}'
+    '''
+    conn.execute(sql)
+    conn.commit()
+    
 
 def define_color(val):
     if val < 0:
@@ -44,41 +51,12 @@ def define_color(val):
     return 'color: %s' % color
 
 
-def read_arquivos_cvm(URL_CVM, tipo, nomes, anos, sufixo, arquivos):
-
-
-    df = pd.DataFrame()
-
-    for nome, ano in zip(nomes, anos):
-
-        with st.spinner(f'Download arquivo {nome}'):
-
-            z = download_url(URL_CVM + nome + '.zip')
-
-            for arq in arquivos:
-
-                if arq != '':
-                    arq = '_' + arq
-
-                filename = f'{tipo.lower()}_cia_aberta{arq}{sufixo}_{ano}.csv'
-
-                f = z.open(filename)
-
-                temp = pd.read_csv(f, encoding='Latin-1', delimiter=';')
-
-                df = pd.concat([df, temp])
-
-    return df
-
-
 def download_arquivos_CVM(dt_ultimo_download, tipo):
 
 
-    # Acessa site CVM para verificar arquivos anuais para download
+    # Donwload dos arquivos do site CVM
 
     URL_CVM = f'http://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/{tipo}/DADOS/'
-
-    # Acessa site CVM para verificar arquivos mensais para download
 
     try:
 
@@ -131,7 +109,7 @@ def download_arquivos_CVM(dt_ultimo_download, tipo):
         arquivos = ['distribuicao_capital']
         novo_form = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], '', arquivos) 
         if len(novo_form) > 0:
-            processa_FRE_capital(tipo, novo_form)
+            processa_FRE_capital(tipo, novo_form, df['ano'])
 
 
     if tipo == 'FCA':
@@ -140,13 +118,13 @@ def download_arquivos_CVM(dt_ultimo_download, tipo):
         arquivos = ['geral']
         novo_form = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], '', arquivos) 
         if len(novo_form) > 0:
-            processa_FCA_cadastro(tipo, novo_form)
+            processa_FCA_cadastro(tipo, novo_form, df['ano'])
 
         # Tickers e Governança
         arquivos = ['valor_mobiliario']
         novo_form = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], '', arquivos) 
         if len(novo_form) > 0:
-            processa_FCA_tickers(tipo, novo_form)
+            processa_FCA_tickers(tipo, novo_form, df['ano'])
 
 
 def download_url(url):
@@ -157,337 +135,6 @@ def download_url(url):
     z = zipfile.ZipFile(io.BytesIO(r.content))
 
     return z
-
-
-def processa_DFP_ITR_saldos(tipo, novo_form, anos):
-
-
-    novo_form.VL_CONTA = novo_form.VL_CONTA.astype(float)
-    
-    novo_form.loc[novo_form['DT_REFER'] != '', 'ano'] = novo_form['DT_REFER'].str[:4]
-
-
-    novo_form['form'] = tipo
-
-    novo_form = novo_form[novo_form.ORDEM_EXERC == 'ÚLTIMO']       
-
-    novo_form.columns = ['cnpj', 'dt_ref', 'versao', 'nome', 'cod_cvm', 'grupo_dfp', 'moeda', 'escala_moeda',
-                  'ordem_exerc', 'dt_fim_exerc', 'cod_conta', 'desc_conta', 'valor', 'sit_conta_fixa',
-                  'dt_ini_exerc', 'ano', 'form']
-
-    contas_selec = ['1', '1.01.01', '1.01.02', '2.03', '3.01', '3.03',
-                    '3.05', '3.11', '2.01.04', '2.02.01']
-
-    # idx saldos das contas selecionadas
-    idx1 = novo_form.cod_conta.isin(contas_selec)
-
-    # idx deprec
-    idx2 = (novo_form.cod_conta.str.startswith('6.01')
-           ) & (
-           novo_form.desc_conta.str.lower().str.contains('deprec|amortiz', regex=True))
-
-
-    novo_form = novo_form[idx1 | idx2]
-
-    novo_form = novo_form[['cnpj', 'dt_ref', 'versao', 'cod_cvm', 'moeda', 'escala_moeda',
-                  'cod_conta', 'desc_conta', 'valor', 'ano', 'form']]
-
-    # Elimina do banco de dados os anos importados
-    # e depois acrescenta com os novos dados
-
-    sql = f'SELECT * FROM {tipo}_SALDOS'
-
-    try:
-        df = pd.read_sql(sql, conn)
-    except:
-        df = pd.DataFrame()
-
-    if len(df) > 0:
-        df = df[~df.ano.isin(anos)]
-
-    df = pd.concat([df, novo_form])
-
-
-    df.to_sql(name=f'{tipo}_SALDOS', con=conn, if_exists='replace', index=False)
-
-
-def processa_DFP_ITR_transmissoes(tipo, novo_form, anos):
-
-
-    novo_form.loc[novo_form['DT_REFER'] != '', 'ano'] = novo_form['DT_REFER'].str[:4]
-
-    novo_form['form'] = tipo
-
-
-    novo_form = novo_form[['CNPJ_CIA', 'DT_REFER', 'VERSAO', 'CD_CVM', 'DT_RECEB', 'LINK_DOC', 'ano', 'form']]
-
-    novo_form.columns = ['cnpj', 'dt_ref', 'versao', 'cod_cvm', 'dt_receb', 'link_doc', 'ano', 'form']
-
-
-    # Elimina do banco de dados os anos importados
-    # e depois acrescenta com os novos dados
-
-    sql = f'SELECT * FROM {tipo}_TRANSMISSOES'
-
-    try:
-        df = pd.read_sql(sql, conn)
-    except:
-        df = pd.DataFrame()
-
-    if len(df) > 0:
-        df = df[~df.ano.isin(anos)]
-
-    df = pd.concat([df, novo_form])
-
-
-    df.to_sql(name=f'{tipo}_TRANSMISSOES', con=conn, if_exists='replace', index=False)
-
-
-def processa_FRE_capital(tipo, novo_form):
-
-
-    novo_form.loc[novo_form['Data_Referencia'] != '', 'ano'] = novo_form['Data_Referencia'].str[:4]
-
-    novo_form['form'] = tipo
-
-    novo_form = novo_form[novo_form['Quantidade_Total_Acoes_Circulacao'] > 0]
-    novo_form = novo_form[novo_form['Percentual_Total_Acoes_Circulacao'] > 0]
-
-    novo_form['acoes'] = (novo_form.Quantidade_Total_Acoes_Circulacao / (novo_form.Percentual_Total_Acoes_Circulacao / 100)).astype('int64')
-    novo_form['free_float'] = novo_form.Percentual_Total_Acoes_Circulacao
-
-    novo_form = novo_form[['CNPJ_Companhia', 
-       'acoes', 'Quantidade_Total_Acoes_Circulacao', 'Percentual_Total_Acoes_Circulacao', 'ano', 'form']]
-
-    novo_form.columns = ['cnpj', 'acoes', 'acoes_circulacao', 'free_float', 'ano', 'form']
-
-    # Elimina do banco de dados os anos importados
-    # e depois acrescenta com os novos dados
-
-    sql = f'SELECT * FROM {tipo}_CAPITAL'
-
-    try:
-        df = pd.read_sql(sql, conn)
-    except:
-        df = pd.DataFrame()
-
-    df = pd.concat([df, novo_form])
-
-    df = df.groupby('cnpj')[
-        ['acoes', 'acoes_circulacao', 'free_float']].last().reset_index()
-
-
-    df.to_sql(name=f'{tipo}_CAPITAL', con=conn, if_exists='replace', index=False)
-
-
-def processa_FCA_cadastro(tipo, novo_form):
-
-
-    novo_form.loc[novo_form['Data_Referencia'] != '', 'ano'] = novo_form['Data_Referencia'].str[:4]
-
-    novo_form['form'] = tipo
-
-    novo_form = novo_form[['CNPJ_Companhia', 
-                           'Codigo_CVM', 'Nome_Empresarial', 'Setor_Atividade', 'Pagina_Web',
-                           'ano', 'form']]
-
-
-    novo_form.columns = ['cnpj', 'cod_cvm', 'nome', 'segmento', 'site', 'ano', 'form']
-
-    # Elimina do banco de dados os anos importados
-    # e depois acrescenta com os novos dados
-
-    sql = f'SELECT * FROM {tipo}_CADASTRO'
-
-    try:
-        df = pd.read_sql(sql, conn)
-    except:
-        df = pd.DataFrame()
-
-    df = pd.concat([df, novo_form])
-
-
-    df = df.groupby('cnpj')[
-        ['cod_cvm', 'nome', 'segmento', 'site']].last().reset_index()
-
-    df.segmento = df.segmento.str.replace('Emp. Adm. Part. - ', '', regex=False)
-    df.segmento = df.segmento.str.replace('Emp. Adm. Part.-', '', regex=False)
-    df.nome = df.nome.str.upper()
-
-    df.to_sql(name=f'{tipo}_CADASTRO', con=conn, if_exists='replace', index=False)
-
-
-def processa_FCA_tickers(tipo, novo_form):
-
-
-    novo_form.loc[novo_form['Data_Referencia'] != '', 'ano'] = novo_form['Data_Referencia'].str[:4]
-
-    novo_form['form'] = tipo
-
-    novo_form = novo_form[['CNPJ_Companhia',
-                           'Codigo_Negociacao', 'Segmento', 'ano', 'form']]
-
-
-    novo_form.columns = ['cnpj', 'ticker', 'governanca', 'ano', 'form']
-
-    # Elimina do banco de dados os anos importados
-    # e depois acrescenta com os novos dados
-
-    sql = f'SELECT * FROM {tipo}_TICKERS'
-
-    try:
-        df = pd.read_sql(sql, conn)
-    except:
-        df = pd.DataFrame()
-
-
-    try:
-        df = pd.read_sql(sql, conn)
-    except:
-        df = pd.DataFrame()
-
-    df = pd.concat([df, novo_form])
-
-
-    df = df.groupby('cnpj')[
-        ['ticker', 'governanca']].last().reset_index()
-
-    df = df.dropna()
-    df.ticker = df.ticker.str.upper()
-
-    df.to_sql(name=f'{tipo}_TICKERS', con=conn, if_exists='replace', index=False)
-
-
-def gera_Dados_Financeiros():
-
-    # Cadastro
-
-    cadastro = pd.read_sql('SELECT * FROM FCA_CADASTRO', conn)
-
-    tickers = pd.read_sql('SELECT * FROM FCA_TICKERS', conn)
-
-    capital = pd.read_sql('SELECT * FROM FRE_CAPITAL', conn)
-
-    cadastro = cadastro.merge(tickers, on='cnpj')
-
-    cadastro = cadastro.merge(capital, on='cnpj', how='left')
-
-    del cadastro['ano']
-    del cadastro['form']
-    del cadastro['ano_x']
-    del cadastro['form_x']
-    del cadastro['ano_y']
-    del cadastro['form_y']
-
-# Dados Financeiros
-
-    # Processa DFP
-    with st.spinner('Processando DFP'):
-
-        dfp = pd.read_sql('SELECT * FROM DFP_SALDOS', conn)
-
-        dfp.dt_ref = pd.to_datetime(dfp.dt_ref)
-    
-        dfp.ano = dfp.ano.astype(int)
-
-        ultimo_ano_dfp = dfp.groupby(['cod_cvm']).last().reset_index()[['cod_cvm', 'dt_ref', 'ano']]
-        ultimo_ano_dfp.columns = ['cod_cvm', 'ultimo_dfp_dt_ref', 'ultimo_dfp_ano']
-
-        ano_anterior = dfp.ano.max() - 1
-
-        empresas_ano_anterior = ultimo_ano_dfp[ultimo_ano_dfp.ultimo_dfp_ano >= ano_anterior]
-        dfp = dfp[dfp.cod_cvm.isin(empresas_ano_anterior.cod_cvm)]
-
-    # Processa ITR (deixa somente último ITR se houver)
-
-    with st.spinner('Processando ITR'):
-
-        itr = pd.read_sql('SELECT * FROM ITR_SALDOS', conn)
-
-        itr.dt_ref = pd.to_datetime(itr.dt_ref)
-
-        itr.ano = itr.ano.astype(int)
-
-        ultimo_itr = itr.groupby(['cod_cvm']).last().reset_index()[['cod_cvm', 'ano', 'dt_ref', 'versao']]
-        ultimo_itr = ultimo_itr.merge(ultimo_ano_dfp, on='cod_cvm', how='left')
-
-        ultimo_itr = ultimo_itr[ultimo_itr.dt_ref > ultimo_itr.ultimo_dfp_dt_ref]
-        ultimo_itr = ultimo_itr[((ultimo_itr.ultimo_dfp_dt_ref.isna()) & (ultimo_itr.ano > ano_anterior)) |
-                                (ultimo_itr.ano > ano_anterior)]
-
-
-        itr['chave'] = itr.cod_cvm.astype(str) + itr.dt_ref.dt.strftime('%Y-%m-%d') + itr.versao.astype(str)
-        ultimo_itr['chave'] = ultimo_itr.cod_cvm.astype(str) + ultimo_itr.dt_ref.dt.strftime('%Y-%m-%d') + ultimo_itr.versao.astype(str)
-
-        itr = itr[itr.chave.isin(ultimo_itr.chave)]
-
-        del itr['chave']
-
-
-    # Junta DFP com último ITR
-    
-    with st.spinner('Preparando base Dados Financeiros'):
-        
-        financ = pd.concat([dfp, itr])
-
-        # Depreciação
-
-        # idx deprec
-        idx_deprec = (financ.cod_conta.str.startswith('6.01')
-                    ) & (
-                    financ.desc_conta.str.lower().str.contains('deprec|amortiz', regex=True))
-
-
-        deprec = financ[idx_deprec]
-        deprec = deprec.groupby(['form', 'cod_cvm', 'ano', 'dt_ref']).sum('valor').reset_index()
-        deprec['deprec_amortiz'] = deprec['valor']
-        del deprec['valor']
-
-    # Gera arquivo de saída
-
-    df = financ.pivot_table(values='valor', index=['form', 'cod_cvm', 'ano', 'dt_ref'], columns='cod_conta', fill_value=0).reset_index()
-
-    df = df.merge(deprec, on=['form', 'cod_cvm', 'ano', 'dt_ref'], how='left')
-    df = df.fillna(0)
-
-    df['ativo'] = df['1']
-    df['caixa'] = df['1.01.01'] + df['1.01.02']
-    df['divida_curto_prazo'] = df['2.01.04']
-    df['divida_longo_prazo'] = df['2.02.01']
-    df['divida_total'] = df['divida_curto_prazo'] + df['divida_longo_prazo']
-    df['patr_liq'] = df['2.03']
-    df['receita_liq'] = df['3.01']
-    df['lucro_bruto'] = df['3.03']
-    df['lucro_liq'] = df['3.11']
-    df['EBIT'] = df['3.05']
-
-    df['endivid_taxa'] = round(df['divida_total'] / df['ativo'], 2)
-    df['margem_liq'] = round(df['lucro_liq'] / df['receita_liq'], 4)
-    df['EBITDA'] = round(df['EBIT'] + df['deprec_amortiz'], 2)
-    df['divida_liq'] = round((df['divida_total'] - df['caixa']) / df['EBITDA'], 2)
-
-    df = df[['form', 'cod_cvm', 'ano', 'dt_ref',
-        'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
-        'divida_curto_prazo', 'divida_longo_prazo', 'caixa', 'divida_total',
-        'endivid_taxa', 'margem_liq', 'deprec_amortiz', 'EBITDA', 'divida_liq']]
-
-    df = df.merge(cadastro, on='cod_cvm')
-
-    df = df[['segmento', 'nome', 'cod_cvm', 'site', 'ticker', 'ano', 'form', 'dt_ref',
-        'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
-        'deprec_amortiz', 'EBITDA', 'margem_liq', 'divida_curto_prazo', 'divida_longo_prazo',
-        'caixa', 'divida_liq', 'divida_total', 'acoes', 'free_float', 'governanca']]
-
-    df = df.sort_values(by=['nome', 'ano'])
-
-    # Corrige tickers incorretos informados em FCA
-    f = f'https://raw.githubusercontent.com/renatosts/AnaliseFundamentalista/main/AJUSTE_TICKERS.csv'
-    ajuste_tickers = pd.read_csv(f, sep=';')
-
-    for cod_cvm, ticker in zip(ajuste_tickers.cod_cvm, ajuste_tickers.ticker):
-        df.loc[df.cod_cvm == cod_cvm, ['ticker']] = ticker
-
-    df.to_sql(name='DADOS_FINANCEIROS', con=conn, if_exists='replace', index=False)
 
 
 def exibe_dados_financeiros():
@@ -539,7 +186,7 @@ def exibe_dados_financeiros():
         #st.write(f'{df.ticker.iloc[0]} - {df.pregao.iloc[0]}')
         st.write(f'{df.nome.iloc[0]}')
         st.write(f'{df.ticker.iloc[0]}')
-        st.write(f'CVM: {df.cod_cvm.iloc[0]}')
+        st.write(f'CNPJ: {df.cnpj.iloc[0]} - CVM: {df.cod_cvm.iloc[0]}')
         #st.write(f'IBovespa: {df.ibovespa.iloc[-1]} - {df.segmento.iloc[0]}')
         st.write(f'{df.segmento.iloc[0]}')
         st.write(f'Governança: {df.governanca.iloc[0]}')
@@ -644,30 +291,406 @@ def exibe_dados_financeiros():
             pass
 
 
-def read_config(config_parametro):
+def gera_Dados_Financeiros():
 
+    # Cadastro
 
-    sql = f'''
-        SELECT *
-        FROM CONFIG
-        WHERE config_parametro = '{config_parametro}'
-    '''
-    config = pd.read_sql(sql, conn)
+    cadastro = pd.read_sql('SELECT * FROM FCA_CADASTRO', conn)
+    del cadastro['ano']
 
-    return config.config_valor.iloc[0]
+    tickers = pd.read_sql('SELECT * FROM FCA_TICKERS', conn)
+    del tickers['ano']
 
+    capital = pd.read_sql('SELECT * FROM FRE_CAPITAL', conn)
+    del capital['ano']
 
-def update_config(config_parametro, config_valor):
+    cadastro = cadastro.merge(tickers, on='cnpj')
 
+    cadastro = cadastro.merge(capital, on='cnpj', how='left')
 
-    sql = f'''
-        UPDATE CONFIG
-        SET config_valor = '{config_valor}'
-        WHERE config_parametro = '{config_parametro}'
-    '''
-    conn.execute(sql)
-    conn.commit()
+    # Corrige tickers incorretos informados em FCA
+    f = f'https://raw.githubusercontent.com/renatosts/AnaliseFundamentalista/main/AJUSTE_TICKERS.csv'
+    ajuste_tickers = pd.read_csv(f, sep=';')
+
+    for cod_cvm, ticker in zip(ajuste_tickers.cod_cvm, ajuste_tickers.ticker):
+        cadastro.loc[cadastro.cod_cvm == cod_cvm, ['ticker']] = ticker
+
+    cadastro = cadastro[cadastro.ticker != '.']
+
+    # Dados Financeiros
+
+    # Processa DFP
+    with st.spinner('Processando DFP'):
+
+        dfp = pd.read_sql('SELECT * FROM DFP_SALDOS', conn)
+
+        dfp.dt_ref = pd.to_datetime(dfp.dt_ref)
     
+        dfp.ano = dfp.ano.astype(int)
+
+        ultimo_ano_dfp = dfp.groupby(['cod_cvm']).last().reset_index()[['cod_cvm', 'dt_ref', 'ano']]
+        ultimo_ano_dfp.columns = ['cod_cvm', 'ultimo_dfp_dt_ref', 'ultimo_dfp_ano']
+
+        ano_anterior = dfp.ano.max() - 1
+
+        empresas_ano_anterior = ultimo_ano_dfp[ultimo_ano_dfp.ultimo_dfp_ano >= ano_anterior]
+        dfp = dfp[dfp.cod_cvm.isin(empresas_ano_anterior.cod_cvm)]
+
+    # Processa ITR (deixa somente último ITR se houver)
+
+    with st.spinner('Processando ITR'):
+
+        itr = pd.read_sql('SELECT * FROM ITR_SALDOS', conn)
+
+        itr.dt_ref = pd.to_datetime(itr.dt_ref)
+
+        itr.ano = itr.ano.astype(int)
+
+        ultimo_itr = itr.groupby(['cod_cvm']).last().reset_index()[['cod_cvm', 'ano', 'dt_ref', 'versao']]
+        ultimo_itr = ultimo_itr.merge(ultimo_ano_dfp, on='cod_cvm', how='left')
+
+        ultimo_itr = ultimo_itr[ultimo_itr.dt_ref > ultimo_itr.ultimo_dfp_dt_ref]
+        ultimo_itr = ultimo_itr[((ultimo_itr.ultimo_dfp_dt_ref.isna()) & (ultimo_itr.ano > ano_anterior)) |
+                                (ultimo_itr.ano > ano_anterior)]
+
+
+        itr['chave'] = itr.cod_cvm.astype(str) + itr.dt_ref.dt.strftime('%Y-%m-%d') + itr.versao.astype(str)
+        ultimo_itr['chave'] = ultimo_itr.cod_cvm.astype(str) + ultimo_itr.dt_ref.dt.strftime('%Y-%m-%d') + ultimo_itr.versao.astype(str)
+
+        itr = itr[itr.chave.isin(ultimo_itr.chave)]
+
+        del itr['chave']
+
+
+    # Junta DFP com último ITR
+    
+    with st.spinner('Preparando base Dados Financeiros'):
+        
+        financ = pd.concat([dfp, itr])
+
+        # Depreciação
+
+        # idx deprec
+        idx_deprec = (financ.cod_conta.str.startswith('6.01')
+                    ) & (
+                    financ.desc_conta.str.lower().str.contains('deprec|amortiz', regex=True))
+
+
+        deprec = financ[idx_deprec]
+        deprec = deprec.groupby(['form', 'cod_cvm', 'ano', 'dt_ref']).sum('valor').reset_index()
+        deprec['deprec_amortiz'] = deprec['valor']
+        del deprec['valor']
+
+    # Gera arquivo de saída
+
+    df = financ.pivot_table(values='valor', index=['form', 'cod_cvm', 'ano', 'dt_ref'], columns='cod_conta', fill_value=0).reset_index()
+
+    df = df.merge(deprec, on=['form', 'cod_cvm', 'ano', 'dt_ref'], how='left')
+    df = df.fillna(0)
+
+    df['ativo'] = df['1']
+    df['caixa'] = df['1.01.01'] + df['1.01.02']
+    df['divida_curto_prazo'] = df['2.01.04']
+    df['divida_longo_prazo'] = df['2.02.01']
+    df['divida_total'] = df['divida_curto_prazo'] + df['divida_longo_prazo']
+    df['patr_liq'] = df['2.03']
+    df['receita_liq'] = df['3.01']
+    df['lucro_bruto'] = df['3.03']
+    df['lucro_liq'] = df['3.11']
+    df['EBIT'] = df['3.05']
+
+    df['endivid_taxa'] = round(df['divida_total'] / df['ativo'], 2)
+    df['margem_liq'] = round(df['lucro_liq'] / df['receita_liq'], 4)
+    df['EBITDA'] = round(df['EBIT'] + df['deprec_amortiz'], 2)
+    df['divida_liq'] = round((df['divida_total'] - df['caixa']) / df['EBITDA'], 2)
+
+    df = df[['form', 'cod_cvm', 'ano', 'dt_ref',
+        'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
+        'divida_curto_prazo', 'divida_longo_prazo', 'caixa', 'divida_total',
+        'endivid_taxa', 'margem_liq', 'deprec_amortiz', 'EBITDA', 'divida_liq']]
+
+    df = df.merge(cadastro, on='cod_cvm')
+
+    df = df[['segmento', 'nome', 'cnpj', 'cod_cvm', 'site', 'ticker', 'ano', 'form', 'dt_ref',
+        'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
+        'deprec_amortiz', 'EBITDA', 'margem_liq', 'divida_curto_prazo', 'divida_longo_prazo',
+        'caixa', 'divida_liq', 'divida_total', 'acoes', 'free_float', 'governanca']]
+
+    df = df.sort_values(by=['nome', 'ano'])
+
+
+    # Salva Dados Financeiros
+
+    df.to_sql(name='DADOS_FINANCEIROS', con=conn, if_exists='replace', index=False)
+
+    # Salva Cadastro somente com as empresas com dados financeiros
+
+    cadastro = cadastro[cadastro.cod_cvm.isin(df.cod_cvm)]
+
+    cadastro.to_sql(name='CADASTRO', con=conn, if_exists='replace', index=False)
+
+
+
+def processa_DFP_ITR_saldos(tipo, novo_form, anos):
+
+
+    novo_form.VL_CONTA = novo_form.VL_CONTA.astype(float)
+    
+    novo_form.loc[novo_form['DT_REFER'] != '', 'ano'] = novo_form['DT_REFER'].str[:4]
+
+
+    novo_form['form'] = tipo
+
+    novo_form = novo_form[novo_form.ORDEM_EXERC == 'ÚLTIMO']       
+
+    novo_form.columns = ['cnpj', 'dt_ref', 'versao', 'nome', 'cod_cvm', 'grupo_dfp', 'moeda', 'escala_moeda',
+                  'ordem_exerc', 'dt_fim_exerc', 'cod_conta', 'desc_conta', 'valor', 'sit_conta_fixa',
+                  'dt_ini_exerc', 'ano', 'form']
+
+    contas_selec = ['1', '1.01.01', '1.01.02', '2.03', '3.01', '3.03',
+                    '3.05', '3.11', '2.01.04', '2.02.01']
+
+    # idx saldos das contas selecionadas
+    idx1 = novo_form.cod_conta.isin(contas_selec)
+
+    # idx deprec
+    idx2 = (novo_form.cod_conta.str.startswith('6.01')
+           ) & (
+           novo_form.desc_conta.str.lower().str.contains('deprec|amortiz', regex=True))
+
+
+    novo_form = novo_form[idx1 | idx2]
+
+    novo_form = novo_form[['cnpj', 'dt_ref', 'versao', 'cod_cvm', 'moeda', 'escala_moeda',
+                  'cod_conta', 'desc_conta', 'valor', 'ano', 'form']]
+
+    # Elimina do banco de dados os anos importados
+    # e depois acrescenta com os novos dados
+
+    sql = f'SELECT * FROM {tipo}_SALDOS'
+
+    try:
+        df = pd.read_sql(sql, conn)
+    except:
+        df = pd.DataFrame()
+
+    if len(df) > 0:
+        df = df[~df.ano.isin(anos)]
+
+    df = pd.concat([df, novo_form])
+
+
+    df.to_sql(name=f'{tipo}_SALDOS', con=conn, if_exists='replace', index=False)
+
+
+def processa_DFP_ITR_transmissoes(tipo, novo_form, anos):
+
+
+    novo_form.loc[novo_form['DT_REFER'] != '', 'ano'] = novo_form['DT_REFER'].str[:4]
+
+    novo_form['form'] = tipo
+
+
+    novo_form = novo_form[['CNPJ_CIA', 'DT_REFER', 'VERSAO', 'CD_CVM', 'DT_RECEB', 'LINK_DOC', 'ano', 'form']]
+
+    novo_form.columns = ['cnpj', 'dt_ref', 'versao', 'cod_cvm', 'dt_receb', 'link_doc', 'ano', 'form']
+
+
+    # Elimina do banco de dados os anos importados
+    # e depois acrescenta com os novos dados
+
+    sql = f'SELECT * FROM {tipo}_TRANSMISSOES'
+
+    try:
+        df = pd.read_sql(sql, conn)
+    except:
+        df = pd.DataFrame()
+
+    if len(df) > 0:
+        df = df[~df.ano.isin(anos)]
+
+    df = pd.concat([df, novo_form])
+
+
+    df.to_sql(name=f'{tipo}_TRANSMISSOES', con=conn, if_exists='replace', index=False)
+
+
+def processa_FCA_cadastro(tipo, novo_form, anos):
+
+
+    novo_form.loc[novo_form['Data_Referencia'] != '', 'ano'] = novo_form['Data_Referencia'].str[:4]
+
+    novo_form = novo_form[['CNPJ_Companhia', 
+                           'Codigo_CVM', 'Nome_Empresarial', 'Setor_Atividade', 'Pagina_Web',
+                           'ano']]
+
+
+    novo_form.columns = ['cnpj', 'cod_cvm', 'nome', 'segmento', 'site', 'ano']
+
+    # Elimina do banco de dados os anos importados
+    # e depois acrescenta os novos dados
+
+    sql = f'SELECT * FROM {tipo}_CADASTRO'
+
+    try:
+        df = pd.read_sql(sql, conn)
+    except:
+        df = pd.DataFrame()
+
+    if len(df) > 0:
+        df = df[~df.ano.isin(anos)]
+
+    df = pd.concat([df, novo_form])
+
+    df = df.fillna('')
+    
+    idx = df.groupby('cnpj')['ano'].max().reset_index()
+
+    df = df[(df.cnpj + df.ano).isin(idx.cnpj + idx.ano)].sort_values('cnpj')
+
+    df = df[['cnpj', 'cod_cvm', 'nome', 'segmento', 'site', 'ano']]
+
+    df.segmento = df.segmento.str.replace('Emp. Adm. Part. - ', '', regex=False)
+    df.segmento = df.segmento.str.replace('Emp. Adm. Part.-', '', regex=False)
+    df.nome = df.nome.str.upper()
+
+    df.to_sql(name=f'{tipo}_CADASTRO', con=conn, if_exists='replace', index=False)
+
+
+def processa_FCA_tickers(tipo, novo_form, anos):
+
+
+    novo_form.loc[novo_form['Data_Referencia'] != '', 'ano'] = novo_form['Data_Referencia'].str[:4]
+
+    novo_form = novo_form[['CNPJ_Companhia',
+                           'Codigo_Negociacao', 'Segmento', 'ano']]
+
+    novo_form.columns = ['cnpj', 'ticker', 'governanca', 'ano']
+
+    # Cria df com tickers (arquivo original traz um ticker por linha)
+    temp = novo_form[['cnpj', 'ticker']].drop_duplicates().dropna()
+    temp['ticker_1'] = temp.ticker.str.upper()
+    temp = temp.set_index(['cnpj', 'ticker'])
+    temp = temp.unstack().fillna('')
+    tickers = temp.loc[:].apply(lambda x: ' '. join(x.values) , axis=1).reset_index()
+    tickers.columns = ['cnpj', 'ticker']
+    tickers.ticker = tickers.ticker.str.strip()
+    tickers.ticker = tickers.ticker.str.replace(' ', ',', regex=False)
+
+    # Elimina do banco de dados os anos importados
+    # e depois acrescenta os novos dados
+
+    governanca = novo_form.sort_values(['cnpj', 'ano'])
+    governanca = governanca.groupby(['cnpj']).last().reset_index()[['cnpj', 'ano', 'governanca']]
+
+
+    tickers = tickers.merge(governanca, on='cnpj', how='left')
+    tickers = tickers[['cnpj', 'ticker', 'governanca', 'ano']]
+
+    sql = f'SELECT * FROM {tipo}_TICKERS'
+
+    try:
+        df = pd.read_sql(sql, conn)
+    except:
+        df = pd.DataFrame()
+
+    if len(df) > 0:
+        df = df[~df.ano.isin(anos)]
+
+    df = pd.concat([df, tickers])
+
+    df = df.fillna('')
+    
+    idx = df.groupby('cnpj')['ano'].max().reset_index()
+
+    df = df[(df.cnpj + df.ano).isin(idx.cnpj + idx.ano)].sort_values('cnpj')
+
+    df.to_sql(name=f'{tipo}_TICKERS', con=conn, if_exists='replace', index=False)
+
+
+def processa_FRE_capital(tipo, novo_form, anos):
+
+
+    novo_form.loc[novo_form['Data_Referencia'] != '', 'ano'] = novo_form['Data_Referencia'].str[:4]
+
+    novo_form = novo_form[novo_form['Quantidade_Total_Acoes_Circulacao'] > 0]
+    novo_form = novo_form[novo_form['Percentual_Total_Acoes_Circulacao'] > 0]
+
+    novo_form['acoes'] = (novo_form.Quantidade_Total_Acoes_Circulacao / (novo_form.Percentual_Total_Acoes_Circulacao / 100)).astype('int64')
+    novo_form['free_float'] = novo_form.Percentual_Total_Acoes_Circulacao
+
+    novo_form = novo_form[['CNPJ_Companhia', 
+       'acoes', 'Quantidade_Total_Acoes_Circulacao', 'Percentual_Total_Acoes_Circulacao', 'ano']]
+
+    novo_form.columns = ['cnpj', 'acoes', 'acoes_circulacao', 'free_float', 'ano']
+
+    # Elimina do banco de dados os anos importados
+    # e depois acrescenta com os novos dados
+
+    sql = f'SELECT * FROM {tipo}_CAPITAL'
+
+    try:
+        df = pd.read_sql(sql, conn)
+    except:
+        df = pd.DataFrame()
+
+    if len(df) > 0:
+        df = df[~df.ano.isin(anos)]
+
+    df = pd.concat([df, novo_form])
+
+    df = df.fillna('')
+    
+    idx = df.groupby('cnpj')['ano'].max().reset_index()
+
+    df = df[(df.cnpj + df.ano).isin(idx.cnpj + idx.ano)].sort_values('cnpj')
+
+    df.to_sql(name=f'{tipo}_CAPITAL', con=conn, if_exists='replace', index=False)
+
+
+def read_arquivos_cvm(URL_CVM, tipo, nomes, anos, sufixo, arquivos):
+
+
+    df = pd.DataFrame()
+
+    for nome, ano in zip(nomes, anos):
+
+        with st.spinner(f'Download arquivo {nome}'):
+
+            z = download_url(URL_CVM + nome + '.zip')
+
+            for arq in arquivos:
+
+                if arq != '':
+                    arq = '_' + arq
+
+                filename = f'{tipo.lower()}_cia_aberta{arq}{sufixo}_{ano}.csv'
+
+                f = z.open(filename)
+
+                temp = pd.read_csv(f, encoding='Latin-1', delimiter=';')
+
+                df = pd.concat([df, temp])
+
+    return df
+
+
+def readDadosFinanceiros():
+
+    df = pd.read_sql('SELECT * FROM DADOS_FINANCEIROS', conn)
+
+    df.receita_liq = df.receita_liq / 1_000
+    df.lucro_liq = df.lucro_liq / 1_000
+    df.EBITDA = df.EBITDA / 1_000
+    df.caixa = df.caixa / 1_000
+    df.patr_liq = df.patr_liq / 1_000
+    df.divida_total = df.divida_total / 1_000
+    df.acoes = df.acoes.fillna(0)
+    df.acoes = (df.acoes / 1_000).astype(int)
+    df.dt_ref = pd.to_datetime(df.dt_ref).dt.strftime('%d/%m/%Y')
+    df = df.fillna('')
+    return df
+
 
 # Procedimento Principal
 
@@ -679,7 +702,7 @@ st.set_page_config(
 
 data_hoje = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 
-dt_ultimo_download = read_config('dt_ultimo_download')
+dt_ultimo_download = config_read('dt_ultimo_download')
 
 if data_hoje[:10] > dt_ultimo_download[:10]:
 
@@ -691,7 +714,7 @@ if data_hoje[:10] > dt_ultimo_download[:10]:
 
     gera_Dados_Financeiros()
 
-    update_config('dt_ultimo_download', data_hoje)
+    config_update('dt_ultimo_download', data_hoje)
 
     conn.execute('VACUUM')
 
