@@ -481,7 +481,8 @@ def gera_Dados_Financeiros():
     df = df.sort_values(by=['nome', 'ano'])
 
     # Corrige tickers incorretos informados em FCA
-    ajuste_tickers = pd.read_csv('AJUSTE_TICKERS.csv', sep=';')
+    f = f'https://raw.githubusercontent.com/renatosts/AnaliseFundamentalista/main/AJUSTE_TICKERS.csv'
+    ajuste_tickers = pd.read_csv(f, sep=';')
 
     for cod_cvm, ticker in zip(ajuste_tickers.cod_cvm, ajuste_tickers.ticker):
         df.loc[df.cod_cvm == cod_cvm, ['ticker']] = ticker
@@ -680,9 +681,9 @@ data_hoje = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 
 dt_ultimo_download = read_config('dt_ultimo_download')
 
-base_download_cvm = ['DFP', 'ITR', 'FRE', 'FCA']
-
 if data_hoje[:10] > dt_ultimo_download[:10]:
+
+    base_download_cvm = ['DFP', 'ITR', 'FRE', 'FCA']
 
     for tipo in base_download_cvm:
 
