@@ -538,6 +538,7 @@ def exibe_dados_financeiros():
         #st.write(f'{df.ticker.iloc[0]} - {df.pregao.iloc[0]}')
         st.write(f'{df.nome.iloc[0]}')
         st.write(f'{df.ticker.iloc[0]}')
+        st.write(f'CVM: {df.cod_cvm.iloc[0]}')
         #st.write(f'IBovespa: {df.ibovespa.iloc[-1]} - {df.segmento.iloc[0]}')
         st.write(f'{df.segmento.iloc[0]}')
         st.write(f'Governança: {df.governanca.iloc[0]}')
