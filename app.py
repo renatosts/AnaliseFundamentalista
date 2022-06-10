@@ -137,6 +137,33 @@ def download_url(url):
     return z
 
 
+def empresas_por_segmento():
+
+
+    # Empresas por segmento
+
+    sql = '''
+        SELECT *
+        FROM CADASTRO
+        ORDER BY segmento, nome
+    '''
+    df = pd.read_sql(sql, conn)
+
+    segmentos = st.multiselect('Segmentos:', df.segmento.drop_duplicates())
+
+    if segmentos != []:
+        df = df[df.segmento.isin(segmentos)]
+
+    df = df.set_index('segmento')
+
+    df = df[['nome', 'ticker', 'cnpj', 'governanca', 'cod_cvm', 'site']]
+
+    df.columns = ['Nome', 'Ticker', 'CNPJ', 'Governança', 'Cód.CVM', 'Site']
+
+    st.table(df)
+
+
+
 def exibe_dados_financeiros():
 
 
@@ -692,13 +719,81 @@ def readDadosFinanceiros():
     return df
 
 
+def ultimos_demonstrativos_transmitidos():
+
+
+    # Empresas por segmento
+
+    sql = '''
+        SELECT t1.*, t2.nome, t2.segmento, t2.ticker
+        FROM {}_TRANSMISSOES AS t1, CADASTRO AS t2
+        WHERE t1.cod_cvm = t2.cod_cvm
+    '''
+    dfp = pd.read_sql(sql.format('DFP'), conn)
+
+    itr = pd.read_sql(sql.format('ITR'), conn)
+
+    df = pd.concat([dfp, itr])
+    
+    df = df.sort_values(['dt_receb', 'nome'], ascending=[False, True])
+
+    col1, col2, col3 = st.columns([3, 2, 1])
+
+    with col1:
+
+        nomes = st.multiselect('Empresas:', df.nome.sort_values().drop_duplicates())
+
+    with col2:
+
+        segmentos = st.multiselect('Segmentos:', df.segmento.sort_values().drop_duplicates())
+
+    with col3:
+
+        forms = st.multiselect('Formulários:', df.form.sort_values().drop_duplicates())
+
+    if nomes != []:
+        df = df[df.nome.isin(nomes)]
+
+    if segmentos != []:
+        df = df[df.segmento.isin(segmentos)]
+
+    if forms != []:
+        df = df[df.form.isin(forms)]
+
+    df = df.head(1000)
+
+    df.dt_receb = pd.to_datetime(df.dt_receb).dt.strftime('%d/%m/%Y')
+    df.dt_ref = pd.to_datetime(df.dt_ref).dt.strftime('%d/%m/%Y')
+
+    df = df.set_index('dt_receb')
+
+    df = df[['form', 'dt_ref', 'versao', 'nome', 'ticker', 'segmento']]
+
+    df.columns = ['Form', 'Data', 'Versão', 'Nome', 'Ticker', 'Segmento']
+
+    st.table(df)
+
+
 # Procedimento Principal
 
 st.set_page_config(
     layout='wide',
+    initial_sidebar_state='collapsed',
     page_icon='app.jpg',
     page_title='B3')
 
+
+with st.sidebar:
+
+    opcao = st.selectbox(
+        label = 'B3',
+        options = [
+            'Dados Financeiros',
+            'Empresas por Segmento',
+            'Últimos Demonstrativos Transmitidos'])
+
+    if st.button('Download do Banco de Dados'):
+        opcao = 'Download do Banco de Dados'
 
 data_hoje = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 
@@ -718,4 +813,19 @@ if data_hoje[:10] > dt_ultimo_download[:10]:
 
     conn.execute('VACUUM')
 
-exibe_dados_financeiros()
+if opcao == 'Dados Financeiros':
+    exibe_dados_financeiros()
+
+if opcao == 'Empresas por Segmento':
+    empresas_por_segmento()
+
+if opcao == 'Últimos Demonstrativos Transmitidos':
+    ultimos_demonstrativos_transmitidos()
+
+if opcao == 'Download do Banco de Dados':
+    st.subheader('Backup do Banco de Dados')
+    with st.spinner('Gerando base para exportar...'):
+        f = ''
+        for line in conn.iterdump():
+            f = f + line
+        st.download_button('Download', f, 'B3_Backup.sql', 'text/csv')
