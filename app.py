@@ -457,6 +457,54 @@ def gera_Dados_Financeiros():
     cadastro.to_sql(name='CADASTRO', con=conn, if_exists='replace', index=False)
 
 
+def importa_cvm(dt_portal_cvm):
+
+
+    dt_cvm = obtem_data_atualizacao_cvm()
+
+    if dt_cvm > dt_portal_cvm:
+
+        base_download_cvm = ['DFP', 'ITR', 'FRE', 'FCA']
+
+        for tipo in base_download_cvm:
+
+            download_arquivos_CVM(dt_ultimo_download, tipo)
+
+        gera_Dados_Financeiros()
+
+        config_update('dt_ultimo_download', data_hoje)
+
+        config_update('dt_portal_cvm', dt_cvm)
+
+        conn.execute('VACUUM')
+
+        return dt_cvm
+
+
+def obtem_data_atualizacao_cvm():
+
+
+    URL_CVM = f'http://dados.cvm.gov.br/dataset/cia_aberta-doc-dfp'
+
+    try:
+
+        resp = req.get(URL_CVM)
+
+    except Exception as e:
+
+        print(e)
+
+
+    bs = BeautifulSoup(resp.text, 'html.parser')
+
+    elem = bs.find('span', {'class':'automatic-local-datetime'})
+
+    data = elem.attrs['data-datetime']
+
+    dt_portal_cvm = data[:10] + ' ' + data[11:19]
+
+    return dt_portal_cvm
+
 
 def processa_DFP_ITR_saldos(tipo, novo_form, anos):
 
@@ -783,6 +831,19 @@ st.set_page_config(
     page_title='B3')
 
 
+data_hoje = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+
+dt_ultimo_download = config_read('dt_ultimo_download')
+
+dt_portal_cvm = config_read('dt_portal_cvm')
+
+# Acessa Portal CVM somente uma vez por dia
+if data_hoje[:10] > dt_ultimo_download[:10]:
+    dt_portal_cvm = importa_cvm(dt_portal_cvm)
+
+dt_cvm_exib = datetime.strptime(dt_portal_cvm, '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y %H:%M:%S')
+
+
 with st.sidebar:
 
     opcao = st.selectbox(
@@ -795,23 +856,7 @@ with st.sidebar:
     if st.button('Download do Banco de Dados'):
         opcao = 'Download do Banco de Dados'
 
-data_hoje = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
-
-dt_ultimo_download = config_read('dt_ultimo_download')
-
-if data_hoje[:10] > dt_ultimo_download[:10]:
-
-    base_download_cvm = ['DFP', 'ITR', 'FRE', 'FCA']
-
-    for tipo in base_download_cvm:
-
-        download_arquivos_CVM(dt_ultimo_download, tipo)
-
-    gera_Dados_Financeiros()
-
-    config_update('dt_ultimo_download', data_hoje)
-
-    conn.execute('VACUUM')
+    st.write(f'Portal CVM\n\n Última atualização: {dt_cvm_exib}')
 
 if opcao == 'Dados Financeiros':
     exibe_dados_financeiros()
