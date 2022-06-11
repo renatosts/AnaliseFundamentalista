@@ -478,7 +478,7 @@ def importa_cvm(dt_portal_cvm):
 
         conn.execute('VACUUM')
 
-        return dt_cvm
+    return dt_cvm
 
 
 def obtem_data_atualizacao_cvm():
