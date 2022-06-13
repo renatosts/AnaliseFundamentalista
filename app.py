@@ -484,7 +484,8 @@ def importa_cvm(dt_portal_cvm):
 def obtem_data_atualizacao_cvm():
 
 
-    URL_CVM = f'http://dados.cvm.gov.br/dataset/cia_aberta-doc-dfp'
+    #URL_CVM = f'http://dados.cvm.gov.br/dataset/cia_aberta-doc-dfp'
+    URL_CVM = f'http://dados.cvm.gov.br/dataset/cia_aberta-cad'
 
     try:
 
