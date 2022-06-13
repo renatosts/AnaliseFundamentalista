@@ -72,22 +72,22 @@ def download_arquivos_CVM(dt_ultimo_download, tipo):
     pre = bs.find('pre')
 
     nome = []
-    for m in re.finditer(rf"{tipo.lower()}_cia_aberta_\w*.zip", pre.text):  
-        nome.append(m.group(0).rstrip('.zip'))
-    
+    for m in re.finditer(rf'{tipo.lower()}_cia_aberta_\w*.(zip|csv)', pre.text):  
+        nome.append(m.group(0))
+   
     last_mod = []
-    for m in re.finditer(r"\d{2}-\w{3}-\d{4} \w{2}:\w{2}", pre.text):  
+    for m in re.finditer(r'\d{2}-\w{3}-\d{4} \w{2}:\w{2}', pre.text):  
         last_mod.append(m.group(0))
 
     # df contém a lista dos arquivos a serem baixados
     df = pd.DataFrame()
     df['nome'] = nome
     df['last_mod'] = last_mod
-    df['ano'] = df.nome.str[15:19]
+    df['ano'] = df.nome.str[-8:-4]
     df['last_mod'] = pd.to_datetime(df.last_mod)
 
     df = df[df['last_mod'] > dt_ultimo_download]
-
+    df = df[df['nome'].str.endswith('.zip')]
 
     if tipo == 'DFP' or tipo == 'ITR':
 
@@ -733,7 +733,7 @@ def read_arquivos_cvm(URL_CVM, tipo, nomes, anos, sufixo, arquivos):
 
         with st.spinner(f'Download arquivo {nome}'):
 
-            z = download_url(URL_CVM + nome + '.zip')
+            z = download_url(URL_CVM + nome)
 
             for arq in arquivos:
 
