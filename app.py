@@ -288,7 +288,7 @@ def exibe_dados_financeiros():
             df_b3['Ano'] = df_b3.index.year
             df_b3['Data'] = df_b3.index
             df_b3 = df_b3.merge(df, how='left', left_on='Ano', right_on='prox_ano')
-            df_b3['P/L'] = df_b3.Close / (df_b3.lucro_liq / qtd_acoes)
+            df_b3['P/L'] = df_b3.Close / (df_b3.lucro_liq / (qtd_acoes / 1000))
 
             # Limita intervalo do P/L entre -150 e 150
             df_b3.loc[df_b3['P/L'] > 150, 'P/L'] = 150
