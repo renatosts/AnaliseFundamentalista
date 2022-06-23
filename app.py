@@ -163,7 +163,6 @@ def empresas_por_segmento():
     st.table(df)
 
 
-
 def exibe_dados_financeiros():
 
 
@@ -189,7 +188,7 @@ def exibe_dados_financeiros():
     # Define para merge do cálculo do P/L diário
     df['prox_ano'] = df.ano + 1
 
-    df_aux = df[['ano', 'form', 'receita_liq', 'lucro_liq', 'margem_liq', 'EBITDA', 'divida_liq', 'caixa', 'patr_liq', 'divida_total', 'dt_ref']]
+    df_aux = df[['ano', 'form', 'receita_liq', 'lucro_liq', 'margem_liq', 'EBITDA', 'divida_liq_ebitda', 'caixa', 'patr_liq', 'divida_total', 'dt_ref']]
 
     df_aux.reset_index(inplace=True, drop=True) 
     df_aux = df_aux.set_index('ano')
@@ -249,7 +248,7 @@ def exibe_dados_financeiros():
         row=1, col=2)
 
     fig.add_trace(
-        go.Bar(x=df.ano, y=df.divida_liq, marker=dict(color="red"), showlegend=True, name='Dívida Líquida'),
+        go.Bar(x=df.ano, y=df.divida_liq_ebitda, marker=dict(color="red"), showlegend=True, name='Dívida Líquida'),
         row=2, col=1)
 
     fig.add_trace(
@@ -419,29 +418,31 @@ def gera_Dados_Financeiros():
     df['caixa'] = df['1.01.01'] + df['1.01.02']
     df['divida_curto_prazo'] = df['2.01.04']
     df['divida_longo_prazo'] = df['2.02.01']
-    df['divida_total'] = df['divida_curto_prazo'] + df['divida_longo_prazo']
     df['patr_liq'] = df['2.03']
     df['receita_liq'] = df['3.01']
     df['lucro_bruto'] = df['3.03']
     df['lucro_liq'] = df['3.11']
     df['EBIT'] = df['3.05']
 
-    df['endivid_taxa'] = round(df['divida_total'] / df['ativo'], 2)
     df['margem_liq'] = round(df['lucro_liq'] / df['receita_liq'], 4)
     df['EBITDA'] = round(df['EBIT'] + df['deprec_amortiz'], 2)
-    df['divida_liq'] = round((df['divida_total'] - df['caixa']) / df['EBITDA'], 2)
+
+    df['divida_total'] = df['divida_curto_prazo'] + df['divida_longo_prazo']
+    df['divida_liq'] = round(df['divida_total'] - df['caixa'], 2)
+
+    df['divida_liq_ebitda'] = round(df['divida_liq'] / df['EBITDA'], 2)
 
     df = df[['form', 'cod_cvm', 'ano', 'dt_ref',
         'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
         'divida_curto_prazo', 'divida_longo_prazo', 'caixa', 'divida_total',
-        'endivid_taxa', 'margem_liq', 'deprec_amortiz', 'EBITDA', 'divida_liq']]
+        'margem_liq', 'deprec_amortiz', 'EBITDA', 'divida_liq', 'divida_liq_ebitda']]
 
     df = df.merge(cadastro, on='cod_cvm')
 
     df = df[['segmento', 'nome', 'cnpj', 'cod_cvm', 'site', 'ticker', 'ano', 'form', 'dt_ref',
         'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
         'deprec_amortiz', 'EBITDA', 'margem_liq', 'divida_curto_prazo', 'divida_longo_prazo',
-        'caixa', 'divida_liq', 'divida_total', 'acoes', 'free_float', 'governanca']]
+        'caixa', 'divida_liq', 'divida_liq_ebitda', 'divida_total', 'acoes', 'free_float', 'governanca']]
 
     df = df.sort_values(by=['nome', 'ano'])
 
