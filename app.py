@@ -137,6 +137,40 @@ def download_url(url):
     return z
 
 
+def elimina_itr_anteriores(df):
+
+
+    dfp = df[df.form == 'DFP'].copy()
+    ultimo_ano_dfp = dfp.groupby(['cod_cvm']).last().reset_index()[['cod_cvm', 'dt_ref', 'ano']]
+    ultimo_ano_dfp.columns = ['cod_cvm', 'ultimo_dfp_dt_ref', 'ultimo_dfp_ano']
+
+    ano_anterior = dfp.ano.max() - 1
+
+    empresas_ano_anterior = ultimo_ano_dfp[ultimo_ano_dfp.ultimo_dfp_ano >= ano_anterior]
+    dfp = dfp[dfp.cod_cvm.isin(empresas_ano_anterior.cod_cvm)]
+
+
+    itr = df[df.form == 'ITR'].copy()
+    ultimo_itr = itr.groupby(['cod_cvm']).last().reset_index()[['cod_cvm', 'ano', 'dt_ref', 'versao']]
+    ultimo_itr = ultimo_itr.merge(ultimo_ano_dfp, on='cod_cvm', how='left')
+
+    ultimo_itr = ultimo_itr[ultimo_itr.dt_ref > ultimo_itr.ultimo_dfp_dt_ref]
+    ultimo_itr = ultimo_itr[((ultimo_itr.ultimo_dfp_dt_ref.isna()) & (ultimo_itr.ano > ano_anterior)) |
+                            (ultimo_itr.ano > ano_anterior)]
+
+
+    itr['chave'] = itr.cod_cvm.astype(str) + itr.dt_ref.dt.strftime('%Y-%m-%d') + itr.versao.astype(str)
+    ultimo_itr['chave'] = ultimo_itr.cod_cvm.astype(str) + ultimo_itr.dt_ref.dt.strftime('%Y-%m-%d') + ultimo_itr.versao.astype(str)
+
+    itr = itr[itr.chave.isin(ultimo_itr.chave)]
+
+    del itr['chave']
+
+    df = pd.concat([dfp, itr])
+
+    return df
+
+
 def empresas_por_segmento():
 
 
@@ -180,15 +214,23 @@ def exibe_dados_financeiros():
         empresa = ticker_selecionado.split(sep=';')[0].strip()
 
     # FILTERING DATA (limitando aos 10 últimos anos - tail)
-    df = financ[financ.ticker.str.startswith(str.upper(ticker))].tail(10).copy()
+    df = financ[financ.ticker.str.startswith(str.upper(ticker))].copy()
+
+    df.dt_ref = pd.to_datetime(df.dt_ref, dayfirst=True)
+
+    df = elimina_itr_anteriores(df)
+
+    df = df.tail(10)
     print(df)
+
+    df['data_form'] = df.dt_ref.dt.strftime('%d/%m/%Y')
 
     qtd_acoes = df.acoes.iloc[0]
 
     # Define para merge do cálculo do P/L diário
     df['prox_ano'] = df.ano + 1
 
-    df_aux = df[['ano', 'form', 'receita_liq', 'lucro_liq', 'margem_liq', 'EBITDA', 'divida_liq_ebitda', 'caixa', 'patr_liq', 'divida_total', 'dt_ref']]
+    df_aux = df[['ano', 'form', 'receita_liq', 'lucro_liq', 'margem_liq', 'EBITDA', 'divida_liq_ebitda', 'caixa', 'patr_liq', 'divida_total', 'data_form']]
 
     df_aux.reset_index(inplace=True, drop=True) 
     df_aux = df_aux.set_index('ano')
@@ -354,6 +396,7 @@ def gera_Dados_Financeiros():
     
         dfp.ano = dfp.ano.astype(int)
 
+        # Elimina empresas sem DFP no ano anterior
         ultimo_ano_dfp = dfp.groupby(['cod_cvm']).last().reset_index()[['cod_cvm', 'dt_ref', 'ano']]
         ultimo_ano_dfp.columns = ['cod_cvm', 'ultimo_dfp_dt_ref', 'ultimo_dfp_ano']
 
@@ -362,7 +405,7 @@ def gera_Dados_Financeiros():
         empresas_ano_anterior = ultimo_ano_dfp[ultimo_ano_dfp.ultimo_dfp_ano >= ano_anterior]
         dfp = dfp[dfp.cod_cvm.isin(empresas_ano_anterior.cod_cvm)]
 
-    # Processa ITR (deixa somente último ITR se houver)
+    # Processa ITR (deixa somente ITR das empresas que têm DFP)
 
     with st.spinner('Processando ITR'):
 
@@ -372,23 +415,10 @@ def gera_Dados_Financeiros():
 
         itr.ano = itr.ano.astype(int)
 
-        ultimo_itr = itr.groupby(['cod_cvm']).last().reset_index()[['cod_cvm', 'ano', 'dt_ref', 'versao']]
-        ultimo_itr = ultimo_itr.merge(ultimo_ano_dfp, on='cod_cvm', how='left')
-
-        ultimo_itr = ultimo_itr[ultimo_itr.dt_ref > ultimo_itr.ultimo_dfp_dt_ref]
-        ultimo_itr = ultimo_itr[((ultimo_itr.ultimo_dfp_dt_ref.isna()) & (ultimo_itr.ano > ano_anterior)) |
-                                (ultimo_itr.ano > ano_anterior)]
+        itr = itr[itr.cod_cvm.isin(empresas_ano_anterior.cod_cvm)]
 
 
-        itr['chave'] = itr.cod_cvm.astype(str) + itr.dt_ref.dt.strftime('%Y-%m-%d') + itr.versao.astype(str)
-        ultimo_itr['chave'] = ultimo_itr.cod_cvm.astype(str) + ultimo_itr.dt_ref.dt.strftime('%Y-%m-%d') + ultimo_itr.versao.astype(str)
-
-        itr = itr[itr.chave.isin(ultimo_itr.chave)]
-
-        del itr['chave']
-
-
-    # Junta DFP com último ITR
+    # Junta DFP com ITR
     
     with st.spinner('Preparando base Dados Financeiros'):
         
@@ -403,15 +433,15 @@ def gera_Dados_Financeiros():
 
 
         deprec = financ[idx_deprec]
-        deprec = deprec.groupby(['form', 'cod_cvm', 'ano', 'dt_ref']).sum('valor').reset_index()
+        deprec = deprec.groupby(['form', 'cod_cvm', 'ano', 'dt_ref', 'versao']).sum('valor').reset_index()
         deprec['deprec_amortiz'] = deprec['valor']
         del deprec['valor']
 
     # Gera arquivo de saída
 
-    df = financ.pivot_table(values='valor', index=['form', 'cod_cvm', 'ano', 'dt_ref'], columns='cod_conta', fill_value=0).reset_index()
+    df = financ.pivot_table(values='valor', index=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao'], columns='cod_conta', fill_value=0).reset_index()
 
-    df = df.merge(deprec, on=['form', 'cod_cvm', 'ano', 'dt_ref'], how='left')
+    df = df.merge(deprec, on=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao'], how='left')
     df = df.fillna(0)
 
     df['ativo'] = df['1']
@@ -432,19 +462,26 @@ def gera_Dados_Financeiros():
 
     df['divida_liq_ebitda'] = round(df['divida_liq'] / df['EBITDA'], 2)
 
-    df = df[['form', 'cod_cvm', 'ano', 'dt_ref',
+    df = df[['form', 'cod_cvm', 'ano', 'dt_ref', 'versao',
         'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
         'divida_curto_prazo', 'divida_longo_prazo', 'caixa', 'divida_total',
         'margem_liq', 'deprec_amortiz', 'EBITDA', 'divida_liq', 'divida_liq_ebitda']]
 
     df = df.merge(cadastro, on='cod_cvm')
 
-    df = df[['segmento', 'nome', 'cnpj', 'cod_cvm', 'site', 'ticker', 'ano', 'form', 'dt_ref',
-        'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
-        'deprec_amortiz', 'EBITDA', 'margem_liq', 'divida_curto_prazo', 'divida_longo_prazo',
-        'caixa', 'divida_liq', 'divida_liq_ebitda', 'divida_total', 'acoes', 'free_float', 'governanca']]
+    # Indicadores
+    df['LPA'] = round(df['lucro_liq'] / (df['acoes'] / 1000), 2)
+    df['VPA'] = round(df['patr_liq'] / (df['acoes'] / 1000), 2)
 
-    df = df.sort_values(by=['nome', 'ano'])
+    df['vlr_intrinseco_graham'] = round((22.5 * df['LPA'] * df['VPA']) ** .5, 2)
+
+    df = df[['segmento', 'nome', 'cnpj', 'cod_cvm', 'site', 'ticker', 'ano', 'form', 'dt_ref',
+        'versao', 'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
+        'deprec_amortiz', 'EBITDA', 'margem_liq', 'divida_curto_prazo', 'divida_longo_prazo',
+        'caixa', 'divida_liq', 'divida_liq_ebitda', 'divida_total', 'acoes', 'free_float', 
+        'governanca', 'LPA', 'VPA', 'vlr_intrinseco_graham']]
+
+    df = df.sort_values(by=['nome', 'dt_ref'])
 
 
     # Salva Dados Financeiros
