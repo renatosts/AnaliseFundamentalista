@@ -473,13 +473,14 @@ def gera_Dados_Financeiros():
     df['LPA'] = round(df['lucro_liq'] / (df['acoes'] / 1000), 2)
     df['VPA'] = round(df['patr_liq'] / (df['acoes'] / 1000), 2)
 
-    df['vlr_intrinseco_graham'] = round((22.5 * df['LPA'] * df['VPA']) ** .5, 2)
+    # Fórmula de Graham: raiz quadrada de (22,5 * LPA * VPA)
+    df['vi_graham'] = round((22.5 * df['LPA'] * df['VPA']) ** .5, 2)
 
     df = df[['segmento', 'nome', 'cnpj', 'cod_cvm', 'site', 'ticker', 'ano', 'form', 'dt_ref',
         'versao', 'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
         'deprec_amortiz', 'EBITDA', 'margem_liq', 'divida_curto_prazo', 'divida_longo_prazo',
         'caixa', 'divida_liq', 'divida_liq_ebitda', 'divida_total', 'acoes', 'free_float', 
-        'governanca', 'LPA', 'VPA', 'vlr_intrinseco_graham']]
+        'governanca', 'LPA', 'VPA', 'vi_graham']]
 
     df = df.sort_values(by=['nome', 'dt_ref'])
 
