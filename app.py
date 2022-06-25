@@ -487,8 +487,8 @@ def gera_Dados_Financeiros():
     # Fórmula de Graham: raiz quadrada de (22,5 * LPA * VPA)
     df['vi_graham'] = round((22.5 * df['LPA'] * df['VPA']) ** .5, 2)
 
-    df = df[['nome', 'cnpj', 'cod_cvm', 'ticker', 'segmento', 'site', 'ano', 'form', 'dt_ref',
-        'versao', 'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
+    df = df[['nome', 'cnpj', 'cod_cvm', 'ticker', 'ticker_graham', 'segmento', 'site', 'ano', 'form', 
+        'dt_ref', 'versao', 'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
         'deprec_amortiz', 'EBITDA', 'margem_liq', 'divida_curto_prazo', 'divida_longo_prazo',
         'caixa', 'divida_liq', 'divida_liq_ebitda', 'divida_total', 'acoes', 'free_float', 
         'governanca', 'LPA', 'VPA', 'vi_graham']]
