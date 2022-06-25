@@ -385,6 +385,17 @@ def gera_Dados_Financeiros():
 
     cadastro = cadastro[cadastro.ticker != '.']
 
+    # Ajusta tickers para fórmula Graham
+    f = f'https://raw.githubusercontent.com/renatosts/AnaliseFundamentalista/main/AJUSTE_TICKERS_GRAHAM.csv'
+    ajuste_graham = pd.read_csv(f, sep=';')
+
+    cadastro['ticker_graham'] = cadastro['ticker']
+
+    for cod_cvm, ticker in zip(ajuste_graham.cod_cvm, ajuste_graham.ticker):
+        cadastro.loc[cadastro.cod_cvm == cod_cvm, ['ticker_graham']] = ticker
+
+    cadastro = cadastro[cadastro.ticker_graham != '.']
+
     # Dados Financeiros
 
     # Processa DFP
@@ -476,7 +487,7 @@ def gera_Dados_Financeiros():
     # Fórmula de Graham: raiz quadrada de (22,5 * LPA * VPA)
     df['vi_graham'] = round((22.5 * df['LPA'] * df['VPA']) ** .5, 2)
 
-    df = df[['segmento', 'nome', 'cnpj', 'cod_cvm', 'site', 'ticker', 'ano', 'form', 'dt_ref',
+    df = df[['nome', 'cnpj', 'cod_cvm', 'ticker', 'segmento', 'site', 'ano', 'form', 'dt_ref',
         'versao', 'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
         'deprec_amortiz', 'EBITDA', 'margem_liq', 'divida_curto_prazo', 'divida_longo_prazo',
         'caixa', 'divida_liq', 'divida_liq_ebitda', 'divida_total', 'acoes', 'free_float', 
