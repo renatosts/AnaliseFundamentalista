@@ -166,7 +166,7 @@ def elimina_itr_anteriores(df):
 
     del itr['chave']
 
-    df = pd.concat([dfp, itr])
+    df = pd.concat([dfp, itr], ignore_index=True)
 
     return df
 
@@ -433,7 +433,7 @@ def gera_Dados_Financeiros():
     
     with st.spinner('Preparando base Dados Financeiros'):
         
-        financ = pd.concat([dfp, itr])
+        financ = pd.concat([dfp, itr], ignore_index=True)
 
         # Depreciação
 
@@ -562,8 +562,9 @@ def processa_DFP_ITR_saldos(tipo, novo_form, anos):
 
     novo_form.VL_CONTA = novo_form.VL_CONTA.astype(float)
     
-    novo_form.loc[novo_form['DT_REFER'] != '', 'ano'] = novo_form['DT_REFER'].str[:4]
+    novo_form.loc[novo_form['ESCALA_MOEDA'] == 'UNIDADE', 'VL_CONTA'] = novo_form['VL_CONTA'] / 1000
 
+    novo_form.loc[novo_form['DT_REFER'] != '', 'ano'] = novo_form['DT_REFER'].str[:4]
 
     novo_form['form'] = tipo
 
@@ -603,7 +604,7 @@ def processa_DFP_ITR_saldos(tipo, novo_form, anos):
     if len(df) > 0:
         df = df[~df.ano.isin(anos)]
 
-    df = pd.concat([df, novo_form])
+    df = pd.concat([df, novo_form], ignore_index=True)
 
 
     df.to_sql(name=f'{tipo}_SALDOS', con=conn, if_exists='replace', index=False)
@@ -635,7 +636,7 @@ def processa_DFP_ITR_transmissoes(tipo, novo_form, anos):
     if len(df) > 0:
         df = df[~df.ano.isin(anos)]
 
-    df = pd.concat([df, novo_form])
+    df = pd.concat([df, novo_form], ignore_index=True)
 
 
     df.to_sql(name=f'{tipo}_TRANSMISSOES', con=conn, if_exists='replace', index=False)
@@ -666,7 +667,7 @@ def processa_FCA_cadastro(tipo, novo_form, anos):
     if len(df) > 0:
         df = df[~df.ano.isin(anos)]
 
-    df = pd.concat([df, novo_form])
+    df = pd.concat([df, novo_form], ignore_index=True)
 
     df = df.fillna('')
     
@@ -723,7 +724,7 @@ def processa_FCA_tickers(tipo, novo_form, anos):
     if len(df) > 0:
         df = df[~df.ano.isin(anos)]
 
-    df = pd.concat([df, tickers])
+    df = pd.concat([df, tickers], ignore_index=True)
 
     df = df.fillna('')
     
@@ -763,7 +764,7 @@ def processa_FRE_capital(tipo, novo_form, anos):
     if len(df) > 0:
         df = df[~df.ano.isin(anos)]
 
-    df = pd.concat([df, novo_form])
+    df = pd.concat([df, novo_form], ignore_index=True)
 
     df = df.fillna('')
     
@@ -796,7 +797,7 @@ def read_arquivos_cvm(URL_CVM, tipo, nomes, anos, sufixo, arquivos):
 
                 temp = pd.read_csv(f, encoding='Latin-1', delimiter=';')
 
-                df = pd.concat([df, temp])
+                df = pd.concat([df, temp], ignore_index=True)
 
     return df
 
@@ -832,7 +833,7 @@ def ultimos_demonstrativos_transmitidos():
 
     itr = pd.read_sql(sql.format('ITR'), conn)
 
-    df = pd.concat([dfp, itr])
+    df = pd.concat([dfp, itr], ignore_index=True)
     
     df = df.sort_values(['dt_receb', 'nome'], ascending=[False, True])
 
