@@ -429,11 +429,27 @@ def gera_Dados_Financeiros():
         itr = itr[itr.cod_cvm.isin(empresas_ano_anterior.cod_cvm)]
 
 
+        # Elimina saldos específicos do trimestre, deixando os saldos desde início do ano
+        itr['dt_ini_exerc'] = pd.to_datetime(itr['dt_ini_exerc'])
+        idx_itr = itr.groupby(['cod_cvm', 'dt_ref', 'versao']).min().reset_index()[['cod_cvm', 'dt_ref', 'versao', 'dt_ini_exerc']]
+
+        itr_bp = itr[itr.dt_ini_exerc.isna()]
+        itr_dre = itr.merge(idx_itr, on=['cod_cvm', 'dt_ref', 'versao', 'dt_ini_exerc'])
+
+        itr = pd.concat([itr_bp, itr_dre])
+
+
     # Junta DFP com ITR
     
     with st.spinner('Preparando base Dados Financeiros'):
         
         financ = pd.concat([dfp, itr], ignore_index=True)
+
+        financ.dt_ini_exerc = pd.to_datetime(financ.dt_ini_exerc)
+
+        financ = financ.sort_values(['cnpj', 'dt_ref', 'versao', 'cod_conta'])
+
+        financ['dt_ini_exerc'] = financ['dt_ini_exerc'].fillna(method='bfill')
 
         # Depreciação
 
@@ -444,15 +460,18 @@ def gera_Dados_Financeiros():
 
 
         deprec = financ[idx_deprec]
-        deprec = deprec.groupby(['form', 'cod_cvm', 'ano', 'dt_ref', 'versao']).sum('valor').reset_index()
+        deprec = deprec.groupby(['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc']).sum('valor').reset_index()
         deprec['deprec_amortiz'] = deprec['valor']
         del deprec['valor']
 
     # Gera arquivo de saída
 
-    df = financ.pivot_table(values='valor', index=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao'], columns='cod_conta', fill_value=0).reset_index()
 
-    df = df.merge(deprec, on=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao'], how='left')
+    df = financ.pivot_table(values='valor', index=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc'], columns='cod_conta', fill_value=0).reset_index()
+
+    df.groupby(['form', 'cod_cvm', 'ano', 'dt_ref', 'versao']).max()
+
+    df = df.merge(deprec, on=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc'], how='left')
     df = df.fillna(0)
 
     df['ativo'] = df['1']
@@ -473,7 +492,7 @@ def gera_Dados_Financeiros():
 
     df['divida_liq_ebitda'] = round(df['divida_liq'] / df['EBITDA'], 2)
 
-    df = df[['form', 'cod_cvm', 'ano', 'dt_ref', 'versao',
+    df = df[['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc',
         'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
         'divida_curto_prazo', 'divida_longo_prazo', 'caixa', 'divida_total',
         'margem_liq', 'deprec_amortiz', 'EBITDA', 'divida_liq', 'divida_liq_ebitda']]
@@ -488,8 +507,8 @@ def gera_Dados_Financeiros():
     df['vi_graham'] = round((22.5 * df['LPA'] * df['VPA']) ** .5, 2)
 
     df = df[['nome', 'cnpj', 'cod_cvm', 'ticker', 'ticker_graham', 'segmento', 'site', 'ano', 'form', 
-        'dt_ref', 'versao', 'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
-        'deprec_amortiz', 'EBITDA', 'margem_liq', 'divida_curto_prazo', 'divida_longo_prazo',
+        'dt_ref', 'versao', 'dt_ini_exerc', 'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq',
+        'EBIT', 'deprec_amortiz', 'EBITDA', 'margem_liq', 'divida_curto_prazo', 'divida_longo_prazo',
         'caixa', 'divida_liq', 'divida_liq_ebitda', 'divida_total', 'acoes', 'free_float', 
         'governanca', 'LPA', 'VPA', 'vi_graham']]
 
@@ -574,8 +593,8 @@ def processa_DFP_ITR_saldos(tipo, novo_form, anos):
                   'ordem_exerc', 'dt_fim_exerc', 'cod_conta', 'desc_conta', 'valor', 'sit_conta_fixa',
                   'dt_ini_exerc', 'ano', 'form']
 
-    contas_selec = ['1', '1.01.01', '1.01.02', '2.03', '3.01', '3.03',
-                    '3.05', '3.11', '2.01.04', '2.02.01']
+    contas_selec = ['1', '1.01.01', '1.01.02', '2.01.04', '2.02.01', 
+                    '2.03', '3.01', '3.03', '3.05', '3.11']
 
     # idx saldos das contas selecionadas
     idx1 = novo_form.cod_conta.isin(contas_selec)
@@ -589,7 +608,7 @@ def processa_DFP_ITR_saldos(tipo, novo_form, anos):
     novo_form = novo_form[idx1 | idx2]
 
     novo_form = novo_form[['cnpj', 'dt_ref', 'versao', 'cod_cvm', 'moeda', 'escala_moeda',
-                  'cod_conta', 'desc_conta', 'valor', 'ano', 'form']]
+                  'cod_conta', 'desc_conta', 'valor', 'dt_ini_exerc', 'ano', 'form']]
 
     # Elimina do banco de dados os anos importados
     # e depois acrescenta com os novos dados
@@ -649,10 +668,10 @@ def processa_FCA_cadastro(tipo, novo_form, anos):
 
     novo_form = novo_form[['CNPJ_Companhia', 
                            'Codigo_CVM', 'Nome_Empresarial', 'Setor_Atividade', 'Pagina_Web',
-                           'ano']]
+                           'Dia_Encerramento_Exercicio_Social', 'Mes_Encerramento_Exercicio_Social', 'ano']]
 
 
-    novo_form.columns = ['cnpj', 'cod_cvm', 'nome', 'segmento', 'site', 'ano']
+    novo_form.columns = ['cnpj', 'cod_cvm', 'nome', 'segmento', 'site', 'dia_encerr', 'mes_encerr', 'ano']
 
     # Elimina do banco de dados os anos importados
     # e depois acrescenta os novos dados
