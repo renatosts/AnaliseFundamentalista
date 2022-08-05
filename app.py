@@ -109,7 +109,13 @@ def download_arquivos_CVM(dt_ultimo_download, tipo):
         arquivos = ['distribuicao_capital']
         novo_form = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], '', arquivos) 
         if len(novo_form) > 0:
-            processa_FRE_capital(tipo, novo_form, df['ano'])
+            processa_FRE_distribuicao_capital(tipo, novo_form, df['ano'])
+
+        # Capital - Quantidade de ações
+        arquivos = ['capital_social']
+        novo_form = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], '', arquivos) 
+        if len(novo_form) > 0:
+            processa_FRE_capital_social(tipo, novo_form, df['ano'])
 
 
     if tipo == 'FCA':
@@ -218,6 +224,12 @@ def exibe_dados_financeiros():
 
     df.dt_ref = pd.to_datetime(df.dt_ref, dayfirst=True)
 
+    df_lpa_trim = df[['dt_ref', 'LPA']]
+    df_lpa_trim.columns = ['Date', 'LPA trim']
+
+    df_lpa_anual = df[df.form == 'DFP'][['dt_ref', 'LPA']]
+    df_lpa_anual.columns = ['Date', 'LPA anual']
+    
     df = elimina_itr_anteriores(df)
 
     df = df.tail(10)
@@ -318,40 +330,66 @@ def exibe_dados_financeiros():
 
     row1_1, row1_2 = st.columns([1, 1])
 
+    dt_hoje = datetime.today().strftime('%Y-%m-%d')
 
     for tck in ticker_b3:
 
         try:
-            df_b3 = pdr.DataReader(f'{tck}.SA', data_source='yahoo', start=f'2010-01-01')
-        
+
             # Cálculo do P/L diário
 
-            df_b3['Ano'] = df_b3.index.year
-            df_b3['Data'] = df_b3.index
-            df_b3 = df_b3.merge(df, how='left', left_on='Ano', right_on='prox_ano')
-            df_b3['P/L'] = df_b3.Close / (df_b3.lucro_liq / (qtd_acoes / 1000))
+            df_datas = pd.DataFrame(pd.date_range(start='2018-01-01', end=dt_hoje), columns=['Date'])
+
+            df_b3 = pdr.DataReader(f'{tck}.SA', data_source='yahoo', start=f'2020-01-01').reset_index()
+            
+            df_b3 = df_datas.merge(df_b3, on='Date', how='left')
+
+            df_b3 = df_b3.merge(df_lpa_trim, on='Date', how='left')
+            df_b3 = df_b3.merge(df_lpa_anual, on='Date', how='left')
+
+            df_b3 = df_b3.ffill()
+
+            df_b3['P/L trim'] = df_b3['Close'] / df_b3['LPA trim']
+            df_b3['P/L anual'] = df_b3['Close'] / df_b3['LPA anual']
+
+            df_b3 = df_b3.dropna()
 
             # Limita intervalo do P/L entre -150 e 150
-            df_b3.loc[df_b3['P/L'] > 150, 'P/L'] = 150
-            df_b3.loc[df_b3['P/L'] < -150, 'P/L'] = -150
+            df_b3.loc[df_b3['P/L trim'] > 150, 'P/L trim'] = 150
+            df_b3.loc[df_b3['P/L trim'] < -150, 'P/L trim'] = -150
+            
+            df_b3.loc[df_b3['P/L anual'] > 150, 'P/L anual'] = 150
+            df_b3.loc[df_b3['P/L anual'] < -150, 'P/L anual'] = -150
+
 
             df_pl_hist = df_b3.tail(500)
+            
+            print(df_pl_hist)
 
-            var = (df_b3["Adj Close"].iloc[-1] / df_b3["Adj Close"].iloc[-2] - 1) * 100
+
+
+            var = (df_b3["Close"].iloc[-1] / df_b3["Close"].iloc[-2] - 1) * 100
 
             with row1_1:
                 
                 fig = go.Figure(data=[
-                    go.Scatter(x=df_b3["Data"], y=df_b3["Adj Close"], marker=dict(color="darkgoldenrod"))])
+                    go.Scatter(x=df_b3["Date"], y=df_b3["Adj Close"], marker=dict(color="darkgoldenrod"))])
+
                 fig.update_layout(title=f'<b>{tck}     R$ {df_b3["Adj Close"].iloc[-1]:,.2f}   <i> {var:,.2f} % </i></b>')
 
                 st.plotly_chart(fig)
 
             with row1_2:
+
+                fig = go.Figure()
+
+                fig.add_trace(
+                    go.Scatter(x=df_pl_hist["Date"], y=df_pl_hist["P/L anual"], marker=dict(color="green"), showlegend=True, name='DFP'))
                 
-                fig = go.Figure(data=[
-                    go.Scatter(x=df_pl_hist["Data"], y=df_pl_hist["P/L"], marker=dict(color="green"))])
-                fig.update_layout(title=f'<b>P/L Histórico Diário ({df_pl_hist["P/L"].iloc[-1]:,.2f})    (Ações: {qtd_acoes:,.0f})</b>')
+                fig.add_trace(
+                    go.Scatter(x=df_pl_hist["Date"], y=df_pl_hist["P/L trim"], marker=dict(color="red"), showlegend=True, name='ITR'))
+
+                fig.update_layout(title=f'<b>P/L Histórico Diário ({df_pl_hist["P/L anual"].iloc[-1]:,.2f})    (Ações: {qtd_acoes:,.0f})</b>')
 
                 st.plotly_chart(fig)
 
@@ -469,10 +507,29 @@ def gera_Dados_Financeiros():
 
     df = financ.pivot_table(values='valor', index=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc'], columns='cod_conta', fill_value=0).reset_index()
 
-    df.groupby(['form', 'cod_cvm', 'ano', 'dt_ref', 'versao']).max()
+    #df.groupby(['form', 'cod_cvm', 'ano', 'dt_ref', 'versao']).max()
 
+    # Junta dados de depreciação
     df = df.merge(deprec, on=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc'], how='left')
+
+
+    # Define lucro por ação (LPA básico)
+    lpa_basico = financ[financ.cod_conta.str.startswith('3.99.01')].groupby(['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'dt_ini_exerc']).mean().reset_index()
+    lpa_basico.columns = ['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'dt_ini_exerc', 'lpa_basico']
+
+    df = df.merge(lpa_basico, on=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc'], how='left')
+
+    # Define lucro por ação (LPA diluído)
+    lpa_diluido = financ[financ.cod_conta.str.startswith('3.99.02')].groupby(['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'dt_ini_exerc']).mean().reset_index()
+    lpa_diluido.columns = ['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'dt_ini_exerc', 'lpa_diluido']
+
+    df = df.merge(lpa_diluido, on=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc'], how='left')
+
     df = df.fillna(0)
+
+    # Se não existir lpa diluído, assume lpa básico
+    df['LPA'] = df['lpa_diluido']
+    df.loc[df.LPA == 0, 'LPA'] = df['lpa_basico']
 
     df['ativo'] = df['1']
     df['caixa'] = df['1.01.01'] + df['1.01.02']
@@ -493,24 +550,24 @@ def gera_Dados_Financeiros():
     df['divida_liq_ebitda'] = round(df['divida_liq'] / df['EBITDA'], 2)
 
     df = df[['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc',
-        'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT',
+        'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT', 'LPA',
         'divida_curto_prazo', 'divida_longo_prazo', 'caixa', 'divida_total',
         'margem_liq', 'deprec_amortiz', 'EBITDA', 'divida_liq', 'divida_liq_ebitda']]
 
     df = df.merge(cadastro, on='cod_cvm')
 
     # Indicadores
-    df['LPA'] = round(df['lucro_liq'] / (df['acoes'] / 1000), 2)
-    df['VPA'] = round(df['patr_liq'] / (df['acoes'] / 1000), 2)
+    #df['LPA'] = round(df['lucro_liq'] / (df['acoes'] / 1000), 2)
+    #df['VPA'] = round(df['patr_liq'] / (df['acoes'] / 1000), 2)
 
     # Fórmula de Graham: raiz quadrada de (22,5 * LPA * VPA)
-    df['vi_graham'] = round((22.5 * df['LPA'] * df['VPA']) ** .5, 2)
+    #df['vi_graham'] = round((22.5 * df['LPA'] * df['VPA']) ** .5, 2)
 
     df = df[['nome', 'cnpj', 'cod_cvm', 'ticker', 'ticker_graham', 'segmento', 'site', 'ano', 'form', 
         'dt_ref', 'versao', 'dt_ini_exerc', 'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq',
         'EBIT', 'deprec_amortiz', 'EBITDA', 'margem_liq', 'divida_curto_prazo', 'divida_longo_prazo',
         'caixa', 'divida_liq', 'divida_liq_ebitda', 'divida_total', 'acoes', 'free_float', 
-        'governanca', 'LPA', 'VPA', 'vi_graham']]
+        'governanca', 'LPA']]
 
     df = df.sort_values(by=['nome', 'dt_ref'])
 
@@ -587,13 +644,14 @@ def processa_DFP_ITR_saldos(tipo, novo_form, anos):
 
     novo_form['form'] = tipo
 
-    novo_form = novo_form[novo_form.ORDEM_EXERC == 'ÚLTIMO']       
+    novo_form = novo_form[(novo_form.ORDEM_EXERC == 'ÚLTIMO') &
+                          (novo_form.VL_CONTA != 0)]       
 
     novo_form.columns = ['cnpj', 'dt_ref', 'versao', 'nome', 'cod_cvm', 'grupo_dfp', 'moeda', 'escala_moeda',
-                  'ordem_exerc', 'dt_fim_exerc', 'cod_conta', 'desc_conta', 'valor', 'sit_conta_fixa',
-                  'dt_ini_exerc', 'ano', 'form']
+                         'ordem_exerc', 'dt_fim_exerc', 'cod_conta', 'desc_conta', 'valor', 'sit_conta_fixa',
+                         'dt_ini_exerc', 'ano', 'form']
 
-    contas_selec = ['1', '1.01.01', '1.01.02', '2.01.04', '2.02.01', 
+    contas_selec = ['1', '1.01.01', '1.01.02', '2.01.04', '2.02.01',
                     '2.03', '3.01', '3.03', '3.05', '3.11']
 
     # idx saldos das contas selecionadas
@@ -604,11 +662,13 @@ def processa_DFP_ITR_saldos(tipo, novo_form, anos):
            ) & (
            novo_form.desc_conta.str.lower().str.contains('deprec|amortiz', regex=True))
 
+    # idx LPA
+    idx3 = (novo_form.cod_conta.str.startswith('3.99'))
 
-    novo_form = novo_form[idx1 | idx2]
+    novo_form = novo_form[idx1 | idx2 | idx3]
 
     novo_form = novo_form[['cnpj', 'dt_ref', 'versao', 'cod_cvm', 'moeda', 'escala_moeda',
-                  'cod_conta', 'desc_conta', 'valor', 'dt_ini_exerc', 'ano', 'form']]
+                           'cod_conta', 'desc_conta', 'valor', 'dt_ini_exerc', 'ano', 'form']]
 
     # Elimina do banco de dados os anos importados
     # e depois acrescenta com os novos dados
@@ -754,7 +814,45 @@ def processa_FCA_tickers(tipo, novo_form, anos):
     df.to_sql(name=f'{tipo}_TICKERS', con=conn, if_exists='replace', index=False)
 
 
-def processa_FRE_capital(tipo, novo_form, anos):
+def processa_FRE_capital_social(tipo, novo_form, anos):
+
+
+    novo_form.loc[novo_form['Data_Referencia'] != '', 'ano'] = novo_form['Data_Referencia'].str[:4]
+
+    novo_form = novo_form[novo_form['Tipo_Capital'] == 'Capital Emitido']
+    novo_form = novo_form[novo_form['Quantidade_Total_Acoes'] > 0]
+
+    novo_form['acoes'] = (novo_form.Quantidade_Total_Acoes).astype('int64')
+
+    novo_form = novo_form[['CNPJ_Companhia', 'acoes', 'ano']]
+
+    novo_form.columns = ['cnpj', 'acoes', 'ano']
+
+    # Elimina do banco de dados os anos importados
+    # e depois acrescenta com os novos dados
+
+    sql = f'SELECT * FROM {tipo}_CAPITAL'
+
+    try:
+        df = pd.read_sql(sql, conn)
+    except:
+        df = pd.DataFrame()
+
+    if len(df) > 0:
+        df = df[~df.ano.isin(anos)]
+
+    df = pd.concat([df, novo_form], ignore_index=True)
+
+    df = df.fillna('')
+    
+    idx = df.groupby('cnpj')['ano'].max().reset_index()
+
+    df = df[(df.cnpj + df.ano).isin(idx.cnpj + idx.ano)].sort_values('cnpj')
+
+    df.to_sql(name=f'{tipo}_CAPITAL', con=conn, if_exists='replace', index=False)
+
+
+def processa_FRE_distribuicao_capital(tipo, novo_form, anos):
 
 
     novo_form.loc[novo_form['Data_Referencia'] != '', 'ano'] = novo_form['Data_Referencia'].str[:4]
