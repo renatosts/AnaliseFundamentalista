@@ -932,7 +932,7 @@ def readDadosFinanceiros():
     df.acoes = df.acoes.fillna(0)
     df.acoes = (df.acoes / 1_000).astype(int)
     df.dt_ref = pd.to_datetime(df.dt_ref).dt.strftime('%d/%m/%Y')
-    df = df.fillna('')
+    df = df.fillna(0)
     return df
 
 
@@ -1042,4 +1042,4 @@ if opcao == 'Download do Banco de Dados':
         f = ''
         for line in conn.iterdump():
             f = f + line
-        st.download_button('Download', f, 'B3_Backup.sql', 'text/csv')
+        st.download_button('Download', f, 'AnaliseFundamentalista.sql', 'text/csv')
