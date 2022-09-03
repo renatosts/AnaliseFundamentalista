@@ -849,6 +849,8 @@ def processa_FRE_capital_social(tipo, novo_form, anos):
 
     df = df[(df.cnpj + df.ano).isin(idx.cnpj + idx.ano)].sort_values('cnpj')
 
+    df = df.drop_duplicates('cnpj', keep='last')
+
     df.to_sql(name=f'{tipo}_CAPITAL', con=conn, if_exists='replace', index=False)
 
 
