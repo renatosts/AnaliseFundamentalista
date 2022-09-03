@@ -338,9 +338,9 @@ def exibe_dados_financeiros():
 
             # Cálculo do P/L diário
 
-            df_datas = pd.DataFrame(pd.date_range(start='2018-01-01', end=dt_hoje), columns=['Date'])
+            df_datas = pd.DataFrame(pd.date_range(start='2012-01-01', end=dt_hoje), columns=['Date'])
 
-            df_b3 = pdr.DataReader(f'{tck}.SA', data_source='yahoo', start=f'2020-01-01').reset_index()
+            df_b3 = pdr.DataReader(f'{tck}.SA', data_source='yahoo', start=f'2012-01-01').reset_index()
             
             df_b3 = df_datas.merge(df_b3, on='Date', how='left')
 
@@ -362,9 +362,9 @@ def exibe_dados_financeiros():
             df_b3.loc[df_b3['P/L anual'] < -150, 'P/L anual'] = -150
 
 
-            df_pl_hist = df_b3.tail(500)
+            df_pl_hist = df_b3.tail(1000)
             
-            print(df_pl_hist)
+            #print(df_pl_hist)
 
 
 
