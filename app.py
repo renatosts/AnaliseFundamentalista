@@ -93,27 +93,24 @@ def download_arquivos_CVM(dt_ultimo_download, tipo):
 
         # Saldos
         arquivos = ['BPA', 'BPP', 'DRE', 'DRA', 'DFC_MD', 'DFC_MI']
-        novo_form = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], '_con', arquivos) 
+        novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos) 
         if len(novo_form) > 0:
             processa_DFP_ITR_saldos(tipo, novo_form, df['ano'])
-
         # Últimas transmissões
-        arquivos = ['']
-        novo_form = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], '', arquivos) 
-        if len(novo_form) > 0:
-            processa_DFP_ITR_transmissoes(tipo, novo_form, df['ano'])
+        if len(ult_transm) > 0:
+            processa_DFP_ITR_transmissoes(tipo, ult_transm, df['ano'])
 
     if tipo == 'FRE':
 
         # Capital - Quantidade de ações
         arquivos = ['distribuicao_capital']
-        novo_form = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], '', arquivos) 
+        novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos) 
         if len(novo_form) > 0:
             processa_FRE_distribuicao_capital(tipo, novo_form, df['ano'])
 
         # Capital - Quantidade de ações
         arquivos = ['capital_social']
-        novo_form = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], '', arquivos) 
+        novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos) 
         if len(novo_form) > 0:
             processa_FRE_capital_social(tipo, novo_form, df['ano'])
 
@@ -122,13 +119,13 @@ def download_arquivos_CVM(dt_ultimo_download, tipo):
 
         # Cadastro
         arquivos = ['geral']
-        novo_form = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], '', arquivos) 
+        novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos) 
         if len(novo_form) > 0:
             processa_FCA_cadastro(tipo, novo_form, df['ano'])
 
         # Tickers e Governança
         arquivos = ['valor_mobiliario']
-        novo_form = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], '', arquivos) 
+        novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos) 
         if len(novo_form) > 0:
             processa_FCA_tickers(tipo, novo_form, df['ano'])
 
@@ -328,7 +325,7 @@ def exibe_dados_financeiros():
 
     ticker_b3 = df.ticker[(df.ticker.str.startswith(ticker))].iloc[0].split(sep=',')
 
-    row1_1, row1_2 = st.columns([1, 1])
+    row1_1, row1_2 = st.columns([1, 0.1])
 
     dt_hoje = datetime.today().strftime('%Y-%m-%d')
 
@@ -379,7 +376,7 @@ def exibe_dados_financeiros():
 
                 st.plotly_chart(fig)
 
-            with row1_2:
+            #with row1_2:
 
                 fig = go.Figure()
 
@@ -894,10 +891,13 @@ def processa_FRE_distribuicao_capital(tipo, novo_form, anos):
     df.to_sql(name=f'{tipo}_CAPITAL', con=conn, if_exists='replace', index=False)
 
 
-def read_arquivos_cvm(URL_CVM, tipo, nomes, anos, sufixo, arquivos):
+def read_arquivos_cvm(URL_CVM, tipo, nomes, anos, arquivos):
 
 
     df = pd.DataFrame()
+
+    ult_transm = pd.DataFrame()
+
 
     for nome, ano in zip(nomes, anos):
 
@@ -907,10 +907,11 @@ def read_arquivos_cvm(URL_CVM, tipo, nomes, anos, sufixo, arquivos):
 
             for arq in arquivos:
 
-                if arq != '':
-                    arq = '_' + arq
+                sufixo = ''
+                if tipo in (['DFP', 'ITR']):
+                    sufixo = '_con'
 
-                filename = f'{tipo.lower()}_cia_aberta{arq}{sufixo}_{ano}.csv'
+                filename = f'{tipo.lower()}_cia_aberta_{arq}{sufixo}_{ano}.csv'
 
                 f = z.open(filename)
 
@@ -918,7 +919,19 @@ def read_arquivos_cvm(URL_CVM, tipo, nomes, anos, sufixo, arquivos):
 
                 df = pd.concat([df, temp], ignore_index=True)
 
-    return df
+        # Últimas transmissões - DFP/ITR
+        if tipo in (['DFP', 'ITR']):
+
+            filename = f'{tipo.lower()}_cia_aberta_{ano}.csv'
+
+            f = z.open(filename)
+
+            temp = pd.read_csv(f, encoding='Latin-1', delimiter=';')
+
+            ult_transm = pd.concat([ult_transm, temp], ignore_index=True)
+
+
+    return df, ult_transm
 
 
 def readDadosFinanceiros():
