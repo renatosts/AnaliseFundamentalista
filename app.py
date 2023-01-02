@@ -104,30 +104,42 @@ def download_arquivos_CVM(dt_ultimo_download, tipo):
 
         # Capital - Quantidade de ações
         arquivos = ['distribuicao_capital']
-        novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos) 
-        if len(novo_form) > 0:
-            processa_FRE_distribuicao_capital(tipo, novo_form, df['ano'])
+        try:
+            novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos) 
+            if len(novo_form) > 0:
+                processa_FRE_distribuicao_capital(tipo, novo_form, df['ano'])
+        except:
+            pass
 
         # Capital - Quantidade de ações
         arquivos = ['capital_social']
-        novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos) 
-        if len(novo_form) > 0:
-            processa_FRE_capital_social(tipo, novo_form, df['ano'])
+        try:
+            novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos) 
+            if len(novo_form) > 0:
+                processa_FRE_capital_social(tipo, novo_form, df['ano'])
+        except:
+            pass
 
 
     if tipo == 'FCA':
 
         # Cadastro
         arquivos = ['geral']
-        novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos) 
-        if len(novo_form) > 0:
-            processa_FCA_cadastro(tipo, novo_form, df['ano'])
+        try:
+            novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos) 
+            if len(novo_form) > 0:
+                processa_FCA_cadastro(tipo, novo_form, df['ano'])
+        except:
+            pass
 
         # Tickers e Governança
         arquivos = ['valor_mobiliario']
-        novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos) 
-        if len(novo_form) > 0:
-            processa_FCA_tickers(tipo, novo_form, df['ano'])
+        try:
+            novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos) 
+            if len(novo_form) > 0:
+                processa_FCA_tickers(tipo, novo_form, df['ano'])
+        except:
+            pass
 
 
 def download_url(url):
