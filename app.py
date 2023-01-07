@@ -1,6 +1,5 @@
 from bs4 import BeautifulSoup
 from datetime import datetime
-from pandas_datareader import data as pdr
 from plotly.subplots import make_subplots
 import io
 import pandas as pd
@@ -9,6 +8,7 @@ import re
 import requests as req
 import sqlite3
 import streamlit as st
+import yfinance as yf
 import zipfile
 
 dbname = 'ANALISE_FUNDAMENTALISTA.db'
@@ -349,7 +349,7 @@ def exibe_dados_financeiros():
 
             df_datas = pd.DataFrame(pd.date_range(start='2012-01-01', end=dt_hoje), columns=['Date'])
 
-            df_b3 = pdr.DataReader(f'{tck}.SA', data_source='yahoo', start=f'2012-01-01').reset_index()
+            df_b3 = yf.download(f'{tck}.SA', start=f'2012-01-01').reset_index()
             
             df_b3 = df_datas.merge(df_b3, on='Date', how='left')
 
@@ -376,7 +376,6 @@ def exibe_dados_financeiros():
             #print(df_pl_hist)
 
 
-
             var = (df_b3["Close"].iloc[-1] / df_b3["Close"].iloc[-2] - 1) * 100
 
             with row1_1:
@@ -388,7 +387,6 @@ def exibe_dados_financeiros():
 
                 st.plotly_chart(fig)
 
-            #with row1_2:
 
                 fig = go.Figure()
 
