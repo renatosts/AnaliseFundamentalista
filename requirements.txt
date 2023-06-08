@@ -62,7 +62,7 @@ plotly-express==0.4.1
 prometheus-client==0.11.0
 prompt-toolkit==3.0.20
 protobuf==3.18.1
-pyarrow==5.0.0
+#pyarrow==5.0.0
 pycparser==2.20
 pydeck==0.7.0
 Pygments==2.10.0
