@@ -253,6 +253,9 @@ def exibe_dados_financeiros():
     # Define para merge do cálculo do P/L diário
     df['prox_ano'] = df.ano + 1
 
+    df.loc[df.grupo == 'Consolidado', 'form'] = df.form + '/C'
+    df.loc[df.grupo == 'Individual', 'form'] = df.form + '/I'
+
     df_aux = df[['ano', 'form', 'receita_liq', 'lucro_liq', 'margem_liq', 'EBITDA', 'divida_liq_ebitda', 'caixa', 'patr_liq', 'divida_total', 'data_form']]
 
     df_aux.reset_index(inplace=True, drop=True) 
@@ -507,32 +510,32 @@ def gera_Dados_Financeiros():
 
 
         deprec = financ[idx_deprec]
-        deprec = deprec.groupby(['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc']).sum('valor').reset_index()
+        deprec = deprec.groupby(['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'grupo', 'dt_ini_exerc']).sum('valor').reset_index()
         deprec['deprec_amortiz'] = deprec['valor']
         del deprec['valor']
 
     # Gera arquivo de saída
 
 
-    df = financ.pivot_table(values='valor', index=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc'], columns='cod_conta', fill_value=0).reset_index()
+    df = financ.pivot_table(values='valor', index=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'grupo', 'dt_ini_exerc'], columns='cod_conta', fill_value=0).reset_index()
 
     #df.groupby(['form', 'cod_cvm', 'ano', 'dt_ref', 'versao']).max()
 
     # Junta dados de depreciação
-    df = df.merge(deprec, on=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc'], how='left')
+    df = df.merge(deprec, on=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'grupo', 'dt_ini_exerc'], how='left')
 
 
     # Define lucro por ação (LPA básico)
-    lpa_basico = financ[financ.cod_conta.str.startswith('3.99.01')].groupby(['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'dt_ini_exerc']).mean().reset_index()
-    lpa_basico.columns = ['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'dt_ini_exerc', 'lpa_basico']
+    lpa_basico = financ[financ.cod_conta.str.startswith('3.99.01')].groupby(['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'grupo', 'dt_ini_exerc']).mean().reset_index()
+    lpa_basico.columns = ['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'grupo', 'dt_ini_exerc', 'lpa_basico']
 
-    df = df.merge(lpa_basico, on=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc'], how='left')
+    df = df.merge(lpa_basico, on=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'grupo', 'dt_ini_exerc'], how='left')
 
     # Define lucro por ação (LPA diluído)
-    lpa_diluido = financ[financ.cod_conta.str.startswith('3.99.02')].groupby(['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'dt_ini_exerc']).mean().reset_index()
-    lpa_diluido.columns = ['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'dt_ini_exerc', 'lpa_diluido']
+    lpa_diluido = financ[financ.cod_conta.str.startswith('3.99.02')].groupby(['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'grupo', 'dt_ini_exerc']).mean().reset_index()
+    lpa_diluido.columns = ['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'grupo', 'dt_ini_exerc', 'lpa_diluido']
 
-    df = df.merge(lpa_diluido, on=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc'], how='left')
+    df = df.merge(lpa_diluido, on=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'grupo', 'dt_ini_exerc'], how='left')
 
     df = df.fillna(0)
 
@@ -558,7 +561,7 @@ def gera_Dados_Financeiros():
 
     df['divida_liq_ebitda'] = round(df['divida_liq'] / df['EBITDA'], 2)
 
-    df = df[['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'dt_ini_exerc',
+    df = df[['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'grupo', 'dt_ini_exerc',
         'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq', 'EBIT', 'LPA',
         'divida_curto_prazo', 'divida_longo_prazo', 'caixa', 'divida_total',
         'margem_liq', 'deprec_amortiz', 'EBITDA', 'divida_liq', 'divida_liq_ebitda']]
@@ -573,7 +576,7 @@ def gera_Dados_Financeiros():
     #df['vi_graham'] = round((22.5 * df['LPA'] * df['VPA']) ** .5, 2)
 
     df = df[['nome', 'cnpj', 'cod_cvm', 'ticker', 'ticker_graham', 'segmento', 'site', 'ano', 'form', 
-        'dt_ref', 'versao', 'dt_ini_exerc', 'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq',
+        'dt_ref', 'versao', 'grupo', 'dt_ini_exerc', 'ativo', 'patr_liq', 'receita_liq', 'lucro_bruto', 'lucro_liq',
         'EBIT', 'deprec_amortiz', 'EBITDA', 'margem_liq', 'divida_curto_prazo', 'divida_longo_prazo',
         'caixa', 'divida_liq', 'divida_liq_ebitda', 'divida_total', 'acoes', 'free_float', 
         'governanca', 'LPA']]
