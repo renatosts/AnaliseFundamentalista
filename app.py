@@ -93,9 +93,11 @@ def download_arquivos_CVM(dt_ultimo_download, tipo):
 
         # Saldos
         arquivos = ['BPA', 'BPP', 'DRE', 'DRA', 'DFC_MD', 'DFC_MI']
-        novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos) 
+        sufixos = ['_con', '_ind']
+        novo_form, ult_transm = read_arquivos_cvm(URL_CVM, tipo, df['nome'], df['ano'], arquivos, sufixos) 
         if len(novo_form) > 0:
-            processa_DFP_ITR_saldos(tipo, novo_form, df['ano'])
+            with st.spinner(f'Processando base {tipo}'):
+                processa_DFP_ITR_saldos(tipo, novo_form, df['ano'])
         # Últimas transmissões
         if len(ult_transm) > 0:
             processa_DFP_ITR_transmissoes(tipo, ult_transm, df['ano'])
@@ -215,7 +217,7 @@ def empresas_por_segmento():
 def exibe_dados_financeiros():
 
 
-    financ = readDadosFinanceiros()
+    financ = read_dados_financeiros()
 
     row1_1, row1_2 = st.columns([1.3, 3])
 
@@ -654,7 +656,7 @@ def processa_DFP_ITR_saldos(tipo, novo_form, anos):
     novo_form = novo_form[(novo_form.ORDEM_EXERC == 'ÚLTIMO') &
                           (novo_form.VL_CONTA != 0)]       
 
-    novo_form.columns = ['cnpj', 'dt_ref', 'versao', 'nome', 'cod_cvm', 'grupo_dfp', 'moeda', 'escala_moeda',
+    novo_form.columns = ['cnpj', 'dt_ref', 'versao', 'nome', 'cod_cvm', 'grupo', 'moeda', 'escala_moeda',
                          'ordem_exerc', 'dt_fim_exerc', 'cod_conta', 'desc_conta', 'valor', 'sit_conta_fixa',
                          'dt_ini_exerc', 'ano', 'form']
 
@@ -674,7 +676,17 @@ def processa_DFP_ITR_saldos(tipo, novo_form, anos):
 
     novo_form = novo_form[idx1 | idx2 | idx3]
 
-    novo_form = novo_form[['cnpj', 'dt_ref', 'versao', 'cod_cvm', 'moeda', 'escala_moeda',
+    # Quando houver formulário consolidado e individual,
+    # prevalece consolidado, removendo o individual
+    novo_form.loc[novo_form.grupo.str.startswith('DF Consolidado'), 'grupo'] = 'Consolidado'
+    novo_form.loc[novo_form.grupo.str.startswith('DF Individual'), 'grupo'] = 'Individual'
+
+    idx_grupos = novo_form.groupby(['cnpj', 'dt_ref']).first().reset_index()[['cnpj', 'dt_ref', 'grupo']]
+
+    novo_form = novo_form[(novo_form.cnpj + novo_form.dt_ref + novo_form.grupo).isin(
+                            idx_grupos.cnpj + idx_grupos.dt_ref + idx_grupos.grupo)]
+
+    novo_form = novo_form[['cnpj', 'dt_ref', 'versao', 'cod_cvm', 'grupo', 'moeda', 'escala_moeda',
                            'cod_conta', 'desc_conta', 'valor', 'dt_ini_exerc', 'ano', 'form']]
 
     # Elimina do banco de dados os anos importados
@@ -692,7 +704,8 @@ def processa_DFP_ITR_saldos(tipo, novo_form, anos):
 
     df = pd.concat([df, novo_form], ignore_index=True)
 
-
+    df = df.sort_values(['cnpj', 'dt_ref', 'cod_conta'])
+                         
     df.to_sql(name=f'{tipo}_SALDOS', con=conn, if_exists='replace', index=False)
 
 
@@ -901,7 +914,7 @@ def processa_FRE_distribuicao_capital(tipo, novo_form, anos):
     df.to_sql(name=f'{tipo}_CAPITAL', con=conn, if_exists='replace', index=False)
 
 
-def read_arquivos_cvm(URL_CVM, tipo, nomes, anos, arquivos):
+def read_arquivos_cvm(URL_CVM, tipo, nomes, anos, arquivos, sufixos=['']):
 
 
     df = pd.DataFrame()
@@ -917,17 +930,15 @@ def read_arquivos_cvm(URL_CVM, tipo, nomes, anos, arquivos):
 
             for arq in arquivos:
 
-                sufixo = ''
-                if tipo in (['DFP', 'ITR']):
-                    sufixo = '_con'
+                for sufixo in sufixos:
 
-                filename = f'{tipo.lower()}_cia_aberta_{arq}{sufixo}_{ano}.csv'
+                    filename = f'{tipo.lower()}_cia_aberta_{arq}{sufixo}_{ano}.csv'
 
-                f = z.open(filename)
+                    f = z.open(filename)
 
-                temp = pd.read_csv(f, encoding='Latin-1', delimiter=';')
+                    temp = pd.read_csv(f, encoding='Latin-1', delimiter=';')
 
-                df = pd.concat([df, temp], ignore_index=True)
+                    df = pd.concat([df, temp], ignore_index=True)
 
         # Últimas transmissões - DFP/ITR
         if tipo in (['DFP', 'ITR']):
@@ -944,7 +955,7 @@ def read_arquivos_cvm(URL_CVM, tipo, nomes, anos, arquivos):
     return df, ult_transm
 
 
-def readDadosFinanceiros():
+def read_dados_financeiros():
 
     df = pd.read_sql('SELECT * FROM DADOS_FINANCEIROS', conn)
 
