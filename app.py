@@ -253,13 +253,15 @@ def exibe_dados_financeiros():
     # Define para merge do cálculo do P/L diário
     df['prox_ano'] = df.ano + 1
 
-    df.loc[df.grupo == 'Consolidado', 'form'] = df.form + '/C'
-    df.loc[df.grupo == 'Individual', 'form'] = df.form + '/I'
+    df.form = df.form + '/' + df.grupo.str[:1]
 
     df_aux = df[['ano', 'form', 'receita_liq', 'lucro_liq', 'margem_liq', 'EBITDA', 'divida_liq_ebitda', 'caixa', 'patr_liq', 'divida_total', 'data_form']]
 
     df_aux.reset_index(inplace=True, drop=True) 
     df_aux = df_aux.set_index('ano')
+
+    # Ajuste para empresas com mais de um DFP no mesmo ano
+    df_aux = df_aux.groupby('ano').last()
 
     df_aux.columns = ['Dem', 'Rec.Líq', 'Luc.Líq', 'Marg.Líq', 'EBITDA', 'Dív.Líq', 'Caixa', 'Patr.Líq', 'Dív.Total', 'Data']
 
