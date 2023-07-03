@@ -600,7 +600,7 @@ def gera_Dados_Financeiros():
 def importa_cvm(dt_portal_cvm):
 
 
-    dt_cvm = obtem_data_atualizacao_cvm()
+    dt_cvm = obtem_data_atualizacao_cvm(dt_portal_cvm)
 
     if dt_cvm > dt_portal_cvm:
 
@@ -621,7 +621,7 @@ def importa_cvm(dt_portal_cvm):
     return dt_cvm
 
 
-def obtem_data_atualizacao_cvm():
+def obtem_data_atualizacao_cvm(dt_portal_cvm):
 
 
     #URL_CVM = f'http://dados.cvm.gov.br/dataset/cia_aberta-doc-dfp'
@@ -634,6 +634,8 @@ def obtem_data_atualizacao_cvm():
     except Exception as e:
 
         print(e)
+
+        return dt_portal_cvm
 
 
     bs = BeautifulSoup(resp.text, 'html.parser')
