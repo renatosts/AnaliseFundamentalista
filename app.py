@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup
 from datetime import datetime
+from io import BytesIO
 from plotly.subplots import make_subplots
 import io
 import pandas as pd
@@ -49,6 +50,21 @@ def define_color(val):
     else:
         color = 'gray'
     return 'color: %s' % color
+
+
+def df_to_planilha():
+
+    df = read_dados_financeiros()
+    
+    df.dt_ref = pd.to_datetime(df.dt_ref, dayfirst=True)
+    
+    df.dt_ini_exerc = pd.to_datetime(df.dt_ini_exerc, dayfirst=True)
+    
+    df = elimina_itr_anteriores(df)
+
+    df = df.sort_values(['nome', 'ano'])
+
+    return df
 
 
 def download_arquivos_CVM(dt_ultimo_download, tipo):
@@ -979,6 +995,19 @@ def read_dados_financeiros():
     return df
 
 
+def to_csv(df):
+    return df.to_csv(index=False, sep=';', decimal=',')
+
+
+def to_excel(df):
+    output = BytesIO()
+    writer = pd.ExcelWriter(output, engine='openpyxl', date_format='YYYY-MM-DD')
+    df.to_excel(writer, index=False, sheet_name='Plan1')
+    writer.save()
+    processed_data = output.getvalue()
+    return processed_data
+
+
 def ultimos_demonstrativos_transmitidos():
 
 
@@ -1065,6 +1094,14 @@ with st.sidebar:
             'Empresas por Segmento',
             'Últimos Demonstrativos Transmitidos'])
 
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button('Download Excel'):
+            opcao = 'Download Excel'
+    with col2:
+        if st.button('Download CSV'):
+            opcao = 'Download CSV'
+
     if st.button('Download do Banco de Dados'):
         opcao = 'Download do Banco de Dados'
 
@@ -1078,6 +1115,21 @@ if opcao == 'Empresas por Segmento':
 
 if opcao == 'Últimos Demonstrativos Transmitidos':
     ultimos_demonstrativos_transmitidos()
+
+if opcao in ['Download Excel', 'Download CSV']:
+    st.subheader('Download Base Financeira')
+    s_nome = 'Planilha Financeira'
+    with st.spinner(f'Gerando {s_nome}...'):
+        df = df_to_planilha()
+        if opcao == 'Download Excel':
+            df_dwld = to_excel(df)
+            s_extensao = 'xlsx'
+        else:
+            df_dwld = to_csv(df)
+            s_extensao = 'csv'
+        st.download_button(label=f'📥 Download {s_nome}.{s_extensao}',
+                           data=df_dwld,
+                           file_name=f'{s_nome}.{s_extensao}')
 
 if opcao == 'Download do Banco de Dados':
     st.subheader('Backup do Banco de Dados')
