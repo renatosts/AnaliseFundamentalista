@@ -260,7 +260,7 @@ def exibe_dados_financeiros():
     df = elimina_itr_anteriores(df)
 
     df = df.tail(10)
-    print(df)
+    print(data_hoje, df)
 
     df['data_form'] = df.dt_ref.dt.strftime('%d/%m/%Y')
 
@@ -356,6 +356,7 @@ def exibe_dados_financeiros():
 
     st.plotly_chart(fig, use_container_width=True)
 
+    print('Cotações')
     # Cotações
 
     ticker_b3 = df.ticker[(df.ticker.str.startswith(ticker))].iloc[0].split(sep=',')
