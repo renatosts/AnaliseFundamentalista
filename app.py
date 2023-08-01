@@ -356,7 +356,6 @@ def exibe_dados_financeiros():
 
     st.plotly_chart(fig, use_container_width=True)
 
-    print('Cotações')
     # Cotações
 
     ticker_b3 = df.ticker[(df.ticker.str.startswith(ticker))].iloc[0].split(sep=',')
@@ -990,7 +989,7 @@ def read_dados_financeiros():
     df.patr_liq = df.patr_liq / 1_000
     df.divida_total = df.divida_total / 1_000
     df.acoes = df.acoes.fillna(0)
-    df.acoes = (df.acoes / 1_000).astype(int)
+    df.acoes = (df.acoes / 1_000).astype('int64')
     df.dt_ref = pd.to_datetime(df.dt_ref).dt.strftime('%d/%m/%Y')
     df = df.fillna(0)
     return df
