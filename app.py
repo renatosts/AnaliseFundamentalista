@@ -1080,7 +1080,9 @@ dt_portal_cvm = config_read('dt_portal_cvm')
 
 # Acessa Portal CVM somente uma vez por dia
 if data_hoje[:10] > dt_ultimo_download[:10]:
+    print('Download Base CVM', data_hoje)
     dt_portal_cvm = importa_cvm(dt_portal_cvm)
+    print('Download concluído')
 
 dt_cvm_exib = datetime.strptime(dt_portal_cvm, '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y %H:%M:%S')
 
