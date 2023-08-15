@@ -544,13 +544,13 @@ def gera_Dados_Financeiros():
 
 
     # Define lucro por ação (LPA básico)
-    lpa_basico = financ[financ.cod_conta.str.startswith('3.99.01')].groupby(['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'grupo', 'dt_ini_exerc']).mean().reset_index()
+    lpa_basico = financ[financ.cod_conta.str.startswith('3.99.01')].groupby(['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'grupo', 'dt_ini_exerc'])['valor'].mean().reset_index()
     lpa_basico.columns = ['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'grupo', 'dt_ini_exerc', 'lpa_basico']
 
     df = df.merge(lpa_basico, on=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'grupo', 'dt_ini_exerc'], how='left')
 
     # Define lucro por ação (LPA diluído)
-    lpa_diluido = financ[financ.cod_conta.str.startswith('3.99.02')].groupby(['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'grupo', 'dt_ini_exerc']).mean().reset_index()
+    lpa_diluido = financ[financ.cod_conta.str.startswith('3.99.02')].groupby(['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'grupo', 'dt_ini_exerc'])['valor'].mean().reset_index()
     lpa_diluido.columns = ['cod_cvm', 'dt_ref', 'form', 'ano', 'versao', 'grupo', 'dt_ini_exerc', 'lpa_diluido']
 
     df = df.merge(lpa_diluido, on=['form', 'cod_cvm', 'ano', 'dt_ref', 'versao', 'grupo', 'dt_ini_exerc'], how='left')
