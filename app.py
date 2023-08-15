@@ -1001,9 +1001,9 @@ def to_csv(df):
 
 def to_excel(df):
     output = BytesIO()
-    writer = pd.ExcelWriter(output, engine='openpyxl', date_format='YYYY-MM-DD')
+    writer = pd.ExcelWriter(output, engine='openpyxl', date_format='DD-MM-YYYY')
     df.to_excel(writer, index=False, sheet_name='Plan1')
-    writer.save()
+    writer.close()
     processed_data = output.getvalue()
     return processed_data
 
