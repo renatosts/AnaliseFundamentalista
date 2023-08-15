@@ -58,7 +58,7 @@ def df_to_planilha():
     
     df.dt_ref = pd.to_datetime(df.dt_ref, dayfirst=True)
     
-    df.dt_ini_exerc = pd.to_datetime(df.dt_ini_exerc, dayfirst=True)
+    df.dt_ini_exerc = pd.to_datetime(df.dt_ini_exerc)
     
     df = elimina_itr_anteriores(df)
 
