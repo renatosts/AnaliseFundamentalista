@@ -230,10 +230,13 @@ def empresas_por_segmento():
     st.table(df)
 
 
-def exibe_dados_financeiros():
+def exibe_dados_financeiros(ticker_url):
 
 
     financ = read_dados_financeiros()
+
+    if ticker_url != '':
+        financ = financ[financ.ticker.str.contains(ticker_url)]
 
     row1_1, row1_2 = st.columns([1.3, 3])
 
@@ -1071,6 +1074,12 @@ st.set_page_config(
     page_icon='app.jpg',
     page_title='B3')
 
+url_params = st.experimental_get_query_params()
+if url_params != {}:
+    ticker_url = url_params['ticker'][0].upper()
+else:
+    ticker_url = ''
+    
 
 data_hoje = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 
@@ -1110,7 +1119,7 @@ with st.sidebar:
     st.write(f'Portal CVM\n\n Última atualização: {dt_cvm_exib}')
 
 if opcao == 'Dados Financeiros':
-    exibe_dados_financeiros()
+    exibe_dados_financeiros(ticker_url)
 
 if opcao == 'Empresas por Segmento':
     empresas_por_segmento()
