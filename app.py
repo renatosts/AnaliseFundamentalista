@@ -1075,7 +1075,7 @@ st.set_page_config(
     page_title='B3')
 
 url_params = st.experimental_get_query_params()
-if url_params != {}:
+if 'ticker' in url_params:
     ticker_url = url_params['ticker'][0].upper()
 else:
     ticker_url = ''
