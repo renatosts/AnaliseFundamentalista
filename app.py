@@ -964,7 +964,32 @@ def read_arquivos_cvm(URL_CVM, tipo, nomes, anos, arquivos, sufixos=['']):
 
                     temp = pd.read_csv(f, encoding='Latin-1', delimiter=';')
 
+
+                    # Para DFP e ITR, elimina registros desnecessários 
+                    # para reduzir taamanho da base
+                    if tipo in ['DFP', 'ITR']:
+
+                        temp = temp[(temp.ORDEM_EXERC == 'ÚLTIMO') & (temp.VL_CONTA != 0)]       
+
+                        contas_selec = ['1', '1.01.01', '1.01.02', '2.01.04', '2.02.01',
+                                        '2.03', '3.01', '3.03', '3.05', '3.11']
+
+                        # idx saldos das contas selecionadas
+                        idx1 = temp.CD_CONTA.isin(contas_selec)
+
+                        # idx deprec
+                        idx2 = (temp.CD_CONTA.str.startswith('6.01')
+                               ) & (
+                                temp.DS_CONTA.str.lower().str.contains('deprec|amortiz', regex=True))
+
+                        # idx LPA
+                        idx3 = (temp.CD_CONTA.str.startswith('3.99'))
+
+                        temp = temp[idx1 | idx2 | idx3]
+
+
                     df = pd.concat([df, temp], ignore_index=True)
+
 
         # Últimas transmissões - DFP/ITR
         if tipo in (['DFP', 'ITR']):
