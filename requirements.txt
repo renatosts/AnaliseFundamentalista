@@ -1,5 +1,6 @@
 openpyxl
 plotly
 streamlit
+bs4
 yfinance==0.1.70
 pandas==2.0.3
