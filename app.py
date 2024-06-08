@@ -100,6 +100,7 @@ def download_arquivos_CVM(dt_ultimo_download, tipo):
     df['nome'] = nome
     df['last_mod'] = last_mod
     df['ano'] = df.nome.str[-8:-4]
+    st.dataframe(df)
     df['last_mod'] = pd.to_datetime(df.last_mod, format='%d-%b-%Y %H:%M')
 
     df = df[df['last_mod'] > dt_ultimo_download]
